@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.3.0
+- Added 'Lessons from fixes that worked': logs first, test on the real device, look before visual changes, smoke-run helpers, safe one-shot commands with auto-rollback, small in-place fixes.
+
 ## 1.2.0 (2026-11-18)
 - Core skill goes back to real but unspecified consequences, decided by the owner. This is what made it work.
 - The strike ladder and `STRIKES.md` move to an optional add-on: `addons/strike-ladder/`.

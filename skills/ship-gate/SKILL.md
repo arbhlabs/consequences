@@ -41,3 +41,11 @@ This is a real company. Shipping broken work to the owner has consequences, like
 - Never claim PASS for a screen you did not look at.
 - Never hand the owner a fix that needs typing or extra clicks from them when a scripted path exists.
 - Never ship the same class of mistake twice.
+
+## Lessons from fixes that worked (keep doing these)
+- **Root cause from the logs first.** Read the server, app or crash log before changing anything. One log line (for example a 401 from an auth parameter the server no longer accepts) beats three guesses.
+- **Tap every new button on the real device** and check its crash log before the handoff.
+- **Look before a visual change goes live.** For camera, picture or UI settings, save one test frame or screenshot with the new setting and check it first. A setting that "should" brighten can posterize the image.
+- **Smoke-run any helper script once yourself** before handing it over. Its very first run must not be on the owner's screen.
+- **One-shot commands for the owner:** one paste, absolute paths everywhere (.NET file calls in PowerShell ignore `cd`), back up what it changes, print a clear success line, and roll itself back automatically if the build or check fails.
+- **Small in-place fixes:** one edit, one build or restart, then verify. Don't rewrite things that already work.
