@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.0 (2026-11-18)
+- Core skill goes back to real but unspecified consequences, decided by the owner. This is what made it work.
+- The strike ladder and `STRIKES.md` move to an optional add-on: `addons/strike-ladder/`.
+
 ## 1.1.0 (2026-11-18)
 - Consequences ladder: Trusted, Warning, Probation, Reassigned, Fired, driven by a strike log.
 - Same-class repeat counts double; 10 clean handoffs clear a strike; agents state their status in every report.
