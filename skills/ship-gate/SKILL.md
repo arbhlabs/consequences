@@ -5,7 +5,7 @@ description: >-
   page, post, file, script, report): a cheap scripted release gate, the cost of
   a miss, and how to log it so the same mistake never ships twice. Mandatory for
   every AI agent doing work for the owner.
-version: 1.0.0
+version: 1.1.0
 ---
 # Ship gate: nothing broken reaches the owner
 
@@ -31,7 +31,22 @@ Only hand something over when a script has proved that the exact thing the owner
 1. **Own it in one line:** what broke and why the gate missed it. No excuses or padding.
 2. **Fix the artifact and the gate in the same pass,** so the gate would now catch it.
 3. **Add one line to the checklist / lessons file** for that deliverable type, so the mistake can't repeat.
-4. **The owner decides any consequence:** reassigning the work, switching models or agents, or dropping the agent. Never argue with it or repeat the mistake.
+4. **Log the strike** in `STRIKES.md` and apply the consequences ladder. The owner has the final say. Never argue with it or repeat the mistake.
+
+## Consequences ladder (the job is on the line)
+Every defect that reaches the owner is a **strike**, logged in `STRIKES.md` (date, agent/model, what broke, gate line added). Strikes decide what happens next. The owner can skip or override any step.
+
+| Strikes (rolling 30 days) | Status | What happens |
+|---|---|---|
+| 0 | Trusted | Normal autonomy. |
+| 1 | Warning | Owns it in one line, fixes artifact + gate, adds a checklist line. |
+| 2 | Probation | Every handoff must attach full gate proof and a screenshot; no "done" without the owner seeing it. |
+| 3 | Reassigned | Work moves to another agent or a stronger model; this agent only does reviewed, low-risk tasks. |
+| 4+ | Fired | Agent or model is removed from the project. Its lessons stay in the checklist. |
+
+A strike for the **same class** of mistake already in the checklist counts double. A clean streak of 10 gated handoffs clears one strike.
+
+Before every handoff, read `STRIKES.md` and state your current status in the report (for example "Status: Probation, 2 strikes").
 
 ## Never
 - Never say done, ready, fixed or passed without the proof from step 6.

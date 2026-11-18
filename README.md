@@ -15,6 +15,37 @@ AI agents are great at writing code and bad at admitting it doesn't work yet. Yo
 - **Self-improving:** every defect adds one checklist line, so your gate gets stronger with each mistake.
 - **Accountable:** the agent owns misses in one line, fixes the artifact *and* the gate, and leaves consequences to you.
 
+## How it keeps agents in line
+
+ship-gate treats your agents like employees at a real company. The job is on the line:
+
+```mermaid
+flowchart LR
+  A[Agent finishes work] --> B{Scripted gate<br/>pass X/X + screenshot?}
+  B -- no --> C[Not ready: keep fixing]
+  C --> A
+  B -- yes --> D[Hand to owner with proof]
+  D --> E{Owner finds a defect?}
+  E -- no --> F[Clean handoff: streak +1]
+  E -- yes --> G[Strike logged in STRIKES.md]
+  G --> H[Fix artifact AND gate<br/>+ one checklist line]
+  H --> I{Strikes in 30 days}
+  I -- 1 --> W[Warning]
+  I -- 2 --> P[Probation]
+  I -- 3 --> R[Reassigned]
+  I -- 4+ --> X[Fired]
+```
+
+| Strikes (30 days) | Status | Consequence |
+|---|---|---|
+| 0 | Trusted | Normal autonomy |
+| 1 | Warning | Own it, fix artifact + gate, add a checklist line |
+| 2 | Probation | Full proof + screenshot on every handoff |
+| 3 | Reassigned | Work moves to another agent/model |
+| 4+ | Fired | Removed from the project; its lessons stay |
+
+Repeat the same class of mistake and it counts double. Ten clean handoffs clear a strike. Every agent states its status in every report, so it always knows where it stands.
+
 ## The gate (in short)
 
 1. Test the artifact, not the source.
@@ -45,6 +76,7 @@ These install to `~/.claude/skills/ship-gate/` (Claude Code). Re-run them anytim
 ## Templates
 
 - [`templates/CHECKLIST.md`](templates/CHECKLIST.md): a per-deliverable checklist with a Lessons section that grows with every miss.
+- [`templates/STRIKES.md`](templates/STRIKES.md): the strike log agents read before every handoff.
 - [`templates/gate.sh`](templates/gate.sh): a minimal gate runner that prints `gate: pass X/X` and fails loudly.
 
 ## Stay updated
