@@ -1,4 +1,6 @@
-# ship-gate
+# Consequences
+
+*A ship gate for AI agents. Formerly ship-gate.*
 
 **Stop your AI agents from saying "done" when it isn't.**
 
@@ -52,12 +54,12 @@ Full text: [`skills/ship-gate/SKILL.md`](skills/ship-gate/SKILL.md)
 
 **macOS / Linux**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/arbhlabs/ship-gate/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/arbhlabs/consequences/main/install.sh | bash
 ```
 
 **Windows (PowerShell)**
 ```powershell
-irm https://raw.githubusercontent.com/arbhlabs/ship-gate/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/arbhlabs/consequences/main/install.ps1 | iex
 ```
 
 These install to `~/.claude/skills/ship-gate/` (Claude Code). Re-run them anytime to update.
