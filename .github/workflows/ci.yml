@@ -1,0 +1,23 @@
+name: Consequences CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gate-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes shellcheck
+      - name: Validate shell scripts
+        run: shellcheck install.sh templates/gate.sh tests/test-gate.sh
+      - name: Run regression tests
+        run: bash tests/test-gate.sh

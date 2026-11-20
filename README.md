@@ -10,7 +10,7 @@ It's built on one idea from real companies: **the owner is the customer, not the
 
 ## Why
 
-AI agents are great at writing code and bad at admitting it doesn't work yet. You've seen it: "All tabs PASS ✅", and then the app shows `--` everywhere and a 401. ship-gate closes that gap with cheap scripted proof instead of more AI review.
+AI agents are great at writing code and bad at admitting it doesn't work yet. You've seen it: "All tabs PASS âœ…", and then the app shows `--` everywhere and a 401. ship-gate closes that gap with cheap scripted proof instead of more AI review.
 
 - **Cheap:** scripts, not extra model passes. A tiny model following this skill ships cleaner than a big one without it.
 - **Proof, not vibes:** no "done" without filename, version/hash, pass X/X, exit code and a screenshot that was actually opened.
@@ -42,10 +42,10 @@ Want visible consequences instead? Add [`addons/strike-ladder`](addons/strike-la
 ## The gate (in short)
 
 1. Test the artifact, not the source.
-2. Every reference resolves (paths, files, URLs, env vars).
-3. Run the real entry point once; exit 0.
-4. Look at it: open a real screenshot; placeholders, errors or overlap = fail.
-5. Run the checklist, including every lessons-learned line.
+2. Every reference resolves through a project-specific checker.
+3. Run the real entry point once; exit code 0.
+4. For screen-based work, open and inspect a real screenshot.
+5. Run the completed checklist, including every lessons-learned line.
 6. Report the proof, or say "not ready".
 
 Full text: [`skills/ship-gate/SKILL.md`](skills/ship-gate/SKILL.md)
@@ -62,14 +62,39 @@ curl -fsSL https://raw.githubusercontent.com/arbhlabs/consequences/main/install.
 irm https://raw.githubusercontent.com/arbhlabs/consequences/main/install.ps1 | iex
 ```
 
-These install to `~/.claude/skills/ship-gate/` (Claude Code). Re-run them anytime to update.
+These install `SKILL.md`, `templates/gate.sh` and `templates/CHECKLIST.md` to `~/.claude/skills/ship-gate/` (Claude Code). Re-run them anytime to update.
 
-**Other agents:** copy `skills/ship-gate/SKILL.md` into your agent's rules or skills folder (for example `.cursor/rules/`, `AGENTS.md`, or `GEMINI.md`), or just paste it into the system prompt.
+**Other agents:** copy `skills/ship-gate/SKILL.md` and the `templates/` directory alongside it into your agent's rules or skills folder (for example `.cursor/rules/`, `AGENTS.md`, or `GEMINI.md`), or paste the skill into the system prompt and keep the runner/checklist available at a known path.
+
+## Run the gate
+
+The runner now requires explicit project-specific reference and smoke-test scripts plus a completed checklist. The helpers receive the artifact path as `$1`; they must inspect the exact artifact and return nonzero on failure. They are invoked as script paths, not evaluated command strings.
+
+```bash
+bash "$HOME/.claude/skills/ship-gate/templates/gate.sh" ./dist/deliverable \
+  --refs-check ./scripts/check-refs.sh \
+  --smoke-script ./scripts/smoke-test.sh \
+  --checklist ./CHECKLIST.md
+```
+
+For a UI or other screen-based deliverable, first open and inspect the screenshot, then append:
+
+```bash
+  --ui --screenshot ./artifacts/release.png --visual-reviewed
+```
+
+The runner confirms that a screenshot file exists and requires an explicit review attestation. It cannot inspect image pixels or independently prove that the screenshot was opened. The secret scan is heuristic and does not scan Git history; audit repository history separately when required.
+
+Run the regression tests with:
+
+```bash
+bash tests/test-gate.sh
+```
 
 ## Templates
 
-- [`templates/CHECKLIST.md`](templates/CHECKLIST.md): a per-deliverable checklist with a Lessons section that grows with every miss.
-- [`templates/gate.sh`](templates/gate.sh): a minimal gate runner that prints `gate: pass X/X` and fails loudly.
+- [`templates/CHECKLIST.md`](templates/CHECKLIST.md): a per-deliverable checklist with a Lessons section that grows with every miss; the gate blocks handoff while any checkbox remains open.
+- [`templates/gate.sh`](templates/gate.sh): a configurable gate runner with required reference, smoke-test and checklist inputs; no `eval`.
 
 ## Stay updated
 
@@ -81,4 +106,4 @@ Found a class of mistake your agents keep shipping? Open an issue with the one-l
 
 ## License
 
-MIT © 2026 Aaron Haug / [ARBH Labs](https://arbhlabs.com)
+MIT Â© 2026 Aaron Haug / [ARBH Labs](https://arbhlabs.com)

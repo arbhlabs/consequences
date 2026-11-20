@@ -5,7 +5,7 @@ description: >-
   page, post, file, script, report): a cheap scripted release gate, the cost of
   a miss, and how to log it so the same mistake never ships twice. Mandatory for
   every AI agent doing work for the owner.
-version: 1.2.0
+version: 1.4.0
 ---
 # Ship gate: nothing broken reaches the owner
 
@@ -16,11 +16,37 @@ Only hand something over when a script has proved that the exact thing the owner
 
 ## The gate (cheap, scripted, no AI review)
 1. **Test the artifact, not the source.** Check the built output the owner will actually run (the installed app, the extracted ISO, the live page), never only the build folder.
-2. **Every reference resolves.** Script it: every path, file, command, URL and env var the deliverable copies, sources, runs or links must exist inside the artifact. One missing file is a failed gate.
-3. **Run the real entry point once.** Do a single smoke run of the actual install, launch or flow (container, staged copy, emulator or device), not a simulation of it. It must exit 0.
-4. **Look at it.** For anything with a screen, capture a screenshot of the real thing and open it. If it shows placeholders, `--`, errors, empty lists, overlap or clipping, the gate fails, whatever the logs say.
-5. **Match the checklist.** Run the project's checklist for this kind of deliverable (`CHECKLIST.md` or your notes vault) as a script, including every lessons-learned line.
+2. **Every reference resolves.** Run a project-specific reference checker for every path, file, command, URL and required environment variable the deliverable uses. A missing reference fails the gate.
+3. **Run the real entry point once.** Run a project-specific smoke script against the exact deliverable (container, staged copy, emulator or device), not a simulation of it. It must exit 0.
+4. **Look at it.** For anything with a screen, capture a screenshot of the real thing, open it and inspect it. If it shows placeholders, `--`, errors, empty lists, overlap or clipping, the gate fails, whatever the logs say.
+5. **Match the checklist.** Run the project's checklist for this kind of deliverable (`CHECKLIST.md` or your notes vault). Every checkbox must be completed; every lessons-learned line must be addressed.
 6. **Report the proof.** Give the filename, hash or version, gate result (pass X/X), smoke-run exit code and screenshot path. Without proof, say "not ready" instead of "done".
+
+## Deterministic gate runner
+The installed skill includes `templates/gate.sh` and `templates/CHECKLIST.md`; the Windows and macOS/Linux installers place them alongside `SKILL.md`. Invoke the runner by its installed path (or copy it into the project), adjusted for the active agent's skill directory. It requires explicit project-specific helpers; it does not accept shell command strings:
+
+```bash
+bash "$HOME/.claude/skills/ship-gate/templates/gate.sh" ./dist/deliverable \
+  --refs-check ./scripts/check-refs.sh \
+  --smoke-script ./scripts/smoke-test.sh \
+  --checklist ./CHECKLIST.md
+```
+
+For a screen-based deliverable, open and inspect the screenshot first, then add:
+
+```bash
+  --ui --screenshot ./artifacts/release.png --visual-reviewed
+```
+
+The reference-check and smoke-test files must be real Bash scripts. Each receives the artifact path as its first argument and must return a nonzero exit code on failure. They must inspect the exact artifact being handed over, not merely source files or an earlier build. Do not use `eval`, `sh -c` command strings, or hardcoded success output in helper scripts.
+
+The runner checks artifact existence, obvious secret-assignment patterns, the reference helper, the smoke helper, and completion of the Markdown checklist. For UI deliverables it also checks that a screenshot file exists and that visual review was explicitly attested. **The runner cannot inspect image pixels or prove that a person opened the screenshot**; the agent must genuinely open and inspect it before passing `--visual-reviewed`. The secret scan is a heuristic, not a substitute for secret-management tooling, and does not scan Git history.
+
+Run the regression suite after changing the runner:
+
+```bash
+bash tests/test-gate.sh
+```
 
 ## Budget (don't waste the owner's money)
 - The gate is scripts, not extra AI passes. No extra research, second reviewers or repeated dry runs unless a script flagged something.
