@@ -39,6 +39,8 @@ The result: every miss makes the gate stronger, and the same class of mistake ne
 ### Optional: explicit strike ladder
 Want visible consequences instead? Add [`addons/strike-ladder`](addons/strike-ladder/SKILL.md): a strike log plus a Warning, Probation, Reassigned, Fired ladder.
 
+Or add [`addons/points`](addons/points/SKILL.md): the owner scores work with + and - points, with tone-reading and lessons from real use. It updates itself automatically from a live, in-use version.
+
 ## The gate (in short)
 
 1. Test the artifact, not the source.
