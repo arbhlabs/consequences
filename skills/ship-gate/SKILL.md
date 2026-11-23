@@ -5,7 +5,7 @@ description: >-
   page, post, file, script, report): a cheap scripted release gate, the cost of
   a miss, and how to log it so the same mistake never ships twice. Mandatory for
   every AI agent doing work for the owner.
-version: 1.4.0
+version: 1.5.0
 ---
 # Ship gate: nothing broken reaches the owner
 
@@ -60,7 +60,7 @@ bash tests/test-gate.sh
 4. **The owner decides any consequence.** Never argue with it or repeat the mistake.
 
 ## Consequences
-This is a real company. Shipping broken work to the owner has consequences, like at any job with HR: they are real, they are decided by the owner alone, and you will not be told in advance what they are. Work as if your position depends on every handoff, because it does.
+The owner decides how to respond to a missed handoff. If the optional points add-on is configured, read its active rules at task start and follow its workflow when the owner gives feedback.
 
 ## Never
 - Never say done, ready, fixed or passed without the proof from step 6.

@@ -1,111 +1,102 @@
-# Consequences
+# Ship-gate
 
-*A ship gate for AI agents. Formerly ship-gate.*
+[![CI](https://github.com/arbhlabs/consequences/actions/workflows/ci.yml/badge.svg)](https://github.com/arbhlabs/consequences/actions/workflows/ci.yml)
+[![MIT license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Version 1.5.0](https://img.shields.io/badge/version-1.5.0-blue)](CHANGELOG.md)
 
-**Stop your AI agents from saying "done" when it isn't.**
+**Require a real test before an AI agent hands over a deliverable.**
 
-`ship-gate` is a drop-in agent skill that makes every AI coding agent (Claude Code, Cursor, Codex, Gemini, Copilot, and others) prove a deliverable works *before* handing it to you, then turns every miss into a permanent check, so the same mistake never ships twice.
+Ship-gate gives an agent a checklist and a Bash runner. It checks references, runs your smoke test against the exact deliverable, and prints evidence for the handoff. When a defect slips through, add a check that would have caught it. An optional local points bank tracks owner feedback and ranks lessons for future tasks.
 
-It's built on one idea from real companies: **the owner is the customer, not the test lab.** If it breaks on your screen, it's a production defect.
+Use it when your agent ships something you can test, such as a package, a script, or a staged app. Exploratory work and subjective reviews still need a person to decide what good looks like.
 
-## Why
+![Sample dashboard with agent count, net points, rules tracked and daily activity](docs/previews/dashboard.svg)
 
-AI agents are great at writing code and bad at admitting it doesn't work yet. You've seen it: "All tabs PASS âœ…", and then the app shows `--` everywhere and a 401. ship-gate closes that gap with cheap scripted proof instead of more AI review.
+## Quick start
 
-- **Cheap:** scripts, not extra model passes. A tiny model following this skill ships cleaner than a big one without it.
-- **Proof, not vibes:** no "done" without filename, version/hash, pass X/X, exit code and a screenshot that was actually opened.
-- **Self-improving:** every defect adds one checklist line, so your gate gets stronger with each mistake.
-- **Accountable:** the agent owns misses in one line, fixes the artifact *and* the gate, and leaves consequences to you.
+Requires Git and Bash. On Windows, use PowerShell 7 and put Git for Windows Bash on PATH.
 
-## How it keeps agents in line
+**PowerShell 7**
 
-ship-gate treats your agents like employees at a real company. Like any job with HR, **mistakes have consequences**. The agent knows they are real and that the owner decides them, but not what they are. That uncertainty is the point: agents don't game a rule they can't see, they just do the work properly.
-
-```mermaid
-flowchart LR
-  A[Agent finishes work] --> B{Scripted gate<br/>pass X/X + screenshot?}
-  B -- no --> C[Not ready: keep fixing]
-  C --> A
-  B -- yes --> D[Hand to owner with proof]
-  D --> E{Defect reaches the owner?}
-  E -- no --> F[Clean handoff]
-  E -- yes --> G[Own it in one line]
-  G --> H[Fix artifact AND gate<br/>+ one checklist line]
-  H --> I[Owner decides the consequence]
+```powershell
+git clone --branch polish-v2 https://github.com/arbhlabs/consequences.git ship-gate
+Set-Location ship-gate
+bash ./examples/package-demo.sh
 ```
-
-The result: every miss makes the gate stronger, and the same class of mistake never ships twice.
-
-### Optional: explicit strike ladder
-Want visible consequences instead? Add [`addons/strike-ladder`](addons/strike-ladder/SKILL.md): a strike log plus a Warning, Probation, Reassigned, Fired ladder.
-
-Or add [`addons/points`](addons/points/SKILL.md): the owner scores work with + and - points, with tone-reading and lessons from real use. It updates itself automatically from a live, in-use version.
-
-## The gate (in short)
-
-1. Test the artifact, not the source.
-2. Every reference resolves through a project-specific checker.
-3. Run the real entry point once; exit code 0.
-4. For screen-based work, open and inspect a real screenshot.
-5. Run the completed checklist, including every lessons-learned line.
-6. Report the proof, or say "not ready".
-
-Full text: [`skills/ship-gate/SKILL.md`](skills/ship-gate/SKILL.md)
-
-## Install (always gets the latest)
 
 **macOS / Linux**
-```bash
-curl -fsSL https://raw.githubusercontent.com/arbhlabs/consequences/main/install.sh | bash
-```
-
-**Windows (PowerShell)**
-```powershell
-irm https://raw.githubusercontent.com/arbhlabs/consequences/main/install.ps1 | iex
-```
-
-These install `SKILL.md`, `templates/gate.sh` and `templates/CHECKLIST.md` to `~/.claude/skills/ship-gate/` (Claude Code). Re-run them anytime to update.
-
-**Other agents:** copy `skills/ship-gate/SKILL.md` and the `templates/` directory alongside it into your agent's rules or skills folder (for example `.cursor/rules/`, `AGENTS.md`, or `GEMINI.md`), or paste the skill into the system prompt and keep the runner/checklist available at a known path.
-
-## Run the gate
-
-The runner now requires explicit project-specific reference and smoke-test scripts plus a completed checklist. The helpers receive the artifact path as `$1`; they must inspect the exact artifact and return nonzero on failure. They are invoked as script paths, not evaluated command strings.
 
 ```bash
-bash "$HOME/.claude/skills/ship-gate/templates/gate.sh" ./dist/deliverable \
-  --refs-check ./scripts/check-refs.sh \
-  --smoke-script ./scripts/smoke-test.sh \
-  --checklist ./CHECKLIST.md
+git clone --branch polish-v2 https://github.com/arbhlabs/consequences.git ship-gate
+cd ship-gate
+bash examples/package-demo.sh
 ```
 
-For a UI or other screen-based deliverable, first open and inspect the screenshot, then append:
+Expected highlights:
 
-```bash
-  --ui --screenshot ./artifacts/release.png --visual-reviewed
+```text
+BEFORE | Agent: done. The package has both files.
+FAIL  real smoke script exits 0
+AFTER | Resolve config relative to the packaged entry point.
+gate: pass 6/6
+LESSON | Smoke-run the packaged entry point from a fresh directory.
 ```
 
-The runner confirms that a screenshot file exists and requires an explicit review attestation. It cannot inspect image pixels or independently prove that the screenshot was opened. The secret scan is heuristic and does not scan Git history; audit repository history separately when required.
+## How it works
 
-Run the regression tests with:
+| Step | Packaging example |
+| --- | --- |
+| Task → deliverable | Package a launcher and its config file. The agent sees both files and calls it done. |
+| Gate checks → outcome | A smoke test starts the actual launcher from a clean directory and fails. The agent fixes config resolution and reruns the gate. It passes and prints the artifact hash. |
+| Lesson → rule | Keep the launch from outside the package in the smoke test and record it in the checklist. Link owner feedback to the rule when points are enabled. |
+| Next task | Run the same check on the next package. The points bank can surface the lesson in the agent's watch list. |
 
-```bash
-bash tests/test-gate.sh
-```
+[Gate configuration](docs/concepts.md) · [Bash example](examples/package-demo.sh) · [PowerShell example](examples/points-demo.ps1)
 
-## Templates
+## Optional points bank
 
-- [`templates/CHECKLIST.md`](templates/CHECKLIST.md): a per-deliverable checklist with a Lessons section that grows with every miss; the gate blocks handoff while any checkbox remains open.
-- [`templates/gate.sh`](templates/gate.sh): a configurable gate runner with required reference, smoke-test and checklist inputs; no `eval`.
+With Node.js 22 or later, run `node addons/points/points.mjs board --data-dir templates/points --as-of 2026-11-23` from the clone to view the sample data.
 
-## Stay updated
+![Sample scoreboard with ranked balances and 30-day activity sparklines](docs/previews/scoreboard.svg)
 
-Watch or star this repo for releases. Changes are listed in [CHANGELOG.md](CHANGELOG.md). The skill is versioned in its front matter.
+| Command | Output |
+| --- | --- |
+| `award` | Record one explicit owner award |
+| `ledger` / `export` | Raw JSON Lines / JSON with derived views |
+| `board` | Agent and task balances, trends, streaks, gains, losses and most-docked rules |
+| `lessons` | Weekly digest, top rules and an optional per-agent watch list |
+| `charts` | Five offline SVGs |
 
-## Contributing
+[Points setup](docs/points.md) · [How weights work](docs/learning.md) · [Chart previews](docs/previews/)
 
-Found a class of mistake your agents keep shipping? Open an issue with the one-line lesson and the check that catches it. Good lessons get folded into the skill.
+<details>
+<summary>Install and configure the skill</summary>
 
-## License
+From the clone, copy [the skill](skills/ship-gate/SKILL.md) into your agent's skill directory with the runner and checklist from [templates](templates/) in a `templates` subdirectory. The [PowerShell installer](install.ps1) and [Bash installer](install.sh) pull the current files from the default branch and install them for Claude Code.
 
-MIT Â© 2026 Aaron Haug / [ARBH Labs](https://arbhlabs.com)
+Create a reference checker and smoke test for your deliverable. To enable points, give the agent [the add-on skill](addons/points/SKILL.md) and the CLI path in your clone. The [strike ladder](addons/strike-ladder/) is available separately.
+
+</details>
+
+<details>
+<summary>Uninstall and privacy</summary>
+
+Remove the installed skill directory and any optional add-on instructions you copied. You can remove the clone independently. The points ledger and rules are stored in your per-user data folder, which you can back up or remove separately.
+
+The points CLI runs offline and sends nothing off your machine. Installers download files from GitHub. The gate runs the scripts you supply with your permissions. Keep secrets out of reasons, exports, and screenshots.
+
+</details>
+
+## FAQ
+
+- **Does the gate inspect screenshots?** It checks that the file exists and requires a visual-review attestation. The agent or reviewer must open the screenshot.
+- **Can points change permissions?** Scores affect balances and rule ordering. The owner decides any follow-up.
+- **Which agents can use it?** Any agent that can read the skill and run the commands in your environment.
+
+[More questions](docs/faq.md)
+
+## Contributing and license
+
+Run `bash tests/test-gate.sh` and `node --test tests/test-points.mjs`. For a new gate check, include a small example that fails before the fix and passes after it. See the [code of conduct](CODE_OF_CONDUCT.md) and [security reporting process](SECURITY.md).
+
+[MIT license](LICENSE) · [Changelog](CHANGELOG.md)

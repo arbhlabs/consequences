@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.0
+
+- Added an optional local points ledger with agent and task balances, trends, streaks, and JSON export.
+- Added weighted rule memory, per-agent watch lists, tag suggestions, and a generated weekly lesson digest.
+- Added five offline SVG charts, runnable examples, and documentation for setup, privacy, and contributing.
+
 ## 1.4.0
 - Removed `eval` from the gate runner; project helper scripts are invoked as quoted paths with the artifact passed as a single argument.
 - Made reference checks, real smoke tests and completed checklists explicit required gate inputs; UI gates require a screenshot and a visual-review attestation.
