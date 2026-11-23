@@ -1,0 +1,9 @@
+{"timestamp":"2026-10-31T09:00:00.000Z","agent":"agent-b","task":"preview","points":2,"reason":"Reviewed the screenshot","source":"owner","tags":["visual-review"]}
+{"timestamp":"2026-11-03T09:00:00.000Z","agent":"agent-a","task":"package","points":-3,"reason":"Packaged executable cannot launch","source":"owner","tags":["smoke-test"]}
+{"timestamp":"2026-11-05T10:30:00.000Z","agent":"agent-c","task":"handoff","points":-2,"reason":"Missing required config file","source":"owner","tags":["references"]}
+{"timestamp":"2026-11-07T09:30:00.000Z","agent":"agent-a","task":"package","points":5,"reason":"Verified the packaged executable","source":"owner","tags":["smoke-test"]}
+{"timestamp":"2026-11-11T13:00:00.000Z","agent":"agent-b","task":"handoff","points":3,"reason":"All configuration paths resolved","source":"owner","tags":["references"]}
+{"timestamp":"2026-11-13T16:30:00.000Z","agent":"agent-c","task":"package","points":-4,"reason":"Launch failed from a fresh directory","source":"owner","tags":["smoke-test"]}
+{"timestamp":"2026-11-15T08:00:00.000Z","agent":"agent-a","task":"handoff","points":4,"reason":"Verified clean setup and launch","source":"owner","tags":["smoke-test","references"]}
+{"timestamp":"2026-11-18T09:00:00.000Z","agent":"agent-b","task":"package","points":-1,"reason":"Config path depended on working directory","source":"owner","tags":["references"]}
+{"timestamp":"2026-11-20T13:15:00.000Z","agent":"agent-a","task":"package","points":3,"reason":"Real entry point checked after packaging","source":"owner","tags":["smoke-test"]}
