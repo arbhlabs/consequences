@@ -1,8 +1,10 @@
 # Install or update the latest ship-gate skill and its runnable templates (Windows).
 # irm https://raw.githubusercontent.com/arbhlabs/consequences/main/install.ps1 | iex
+param([string] $Destination = (Join-Path $HOME '.claude\skills\ship-gate'))
+
 $ErrorActionPreference = 'Stop'
 $baseUrl = 'https://raw.githubusercontent.com/arbhlabs/consequences/main'
-$dest = Join-Path $HOME '.claude\skills\ship-gate'
+$dest = $Destination
 $temp = Join-Path ([System.IO.Path]::GetTempPath()) ('ship-gate-' + [guid]::NewGuid().ToString('N'))
 
 New-Item -ItemType Directory -Force -Path $temp | Out-Null

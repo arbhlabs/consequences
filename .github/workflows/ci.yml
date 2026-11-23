@@ -21,3 +21,21 @@ jobs:
         run: shellcheck install.sh templates/gate.sh tests/test-gate.sh
       - name: Run regression tests
         run: bash tests/test-gate.sh
+      - name: Run packaged handoff example
+        run: bash examples/package-demo.sh
+  points-tests:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test tests/test-points.mjs
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./tests/test-install.ps1
+          ./examples/points-demo.ps1
