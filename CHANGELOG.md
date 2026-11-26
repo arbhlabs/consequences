@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+- Public README, diagrams, and a recorded real run of the gate on a sample deliverable.
+- Points add-on genericized for public use, with a scoreboard template and a rule to record awards automatically.
+
 ## 1.4.0
 - Removed `eval` from the gate runner; project helper scripts are invoked as quoted paths with the artifact passed as a single argument.
 - Made reference checks, real smoke tests and completed checklists explicit required gate inputs; UI gates require a screenshot and a visual-review attestation.

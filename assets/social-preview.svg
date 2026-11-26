@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-label="Consequences, a ship gate for AI agents, by ARBH Labs. Prove the deliverable works before you hand it over.">
+  <title>Consequences</title>
+  <rect width="1280" height="640" fill="#0B0D10"/>
+  <rect x="24" y="24" width="1232" height="592" fill="none" stroke="#1C2128" stroke-width="1"/>
+  <g transform="translate(96,80)">
+    <svg width="40" height="40" viewBox="0 0 140 140" aria-hidden="true">
+      <polygon points="58,37.5 79,37.5 120,102.5 99,102.5" fill="#EEF1F4"/>
+      <polygon points="42,68.5 65,68.5 42,102.5 20,102.5" fill="#4D8DFF"/>
+    </svg>
+    <text x="56" y="27" fill="#EEF1F4" font-family="Instrument Sans, Inter, ui-sans-serif, sans-serif" font-size="16" font-weight="600" letter-spacing="3.2">ARBH LABS</text>
+  </g>
+  <text x="96" y="250" fill="#4D8DFF" font-family="Instrument Sans, Inter, ui-sans-serif, sans-serif" font-size="14" font-weight="600" letter-spacing="2.5">A SHIP GATE FOR AI AGENTS</text>
+  <text x="90" y="370" fill="#EEF1F4" font-family="Instrument Sans, Inter, ui-sans-serif, sans-serif" font-size="108" font-weight="650" letter-spacing="-5.9">Consequences</text>
+  <text x="96" y="430" fill="#B0B7C1" font-family="Instrument Sans, Inter, ui-sans-serif, sans-serif" font-size="26">Prove the deliverable works before you hand it over.</text>
+  <line x1="96" y1="520" x2="1184" y2="520" stroke="#1C2128" stroke-width="1"/>
+  <text x="96" y="558" fill="#8B939E" font-family="Instrument Sans, Inter, ui-sans-serif, sans-serif" font-size="14">github.com/arbhlabs/consequences</text>
+  <text x="1184" y="558" fill="#8B939E" font-family="Instrument Sans, Inter, ui-sans-serif, sans-serif" font-size="14" text-anchor="end">Open source · MIT</text>
+</svg>

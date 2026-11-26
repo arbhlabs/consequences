@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-label="Consequences: a ship gate for AI agents. Prove the deliverable works before you hand it over. Every miss becomes a checklist line.">
+  <title>Consequences</title>
+  <rect width="1280" height="640" fill="#0B0D10"/>
+  <rect x="24" y="24" width="1232" height="592" fill="none" stroke="#1C2128" stroke-width="1"/>
+  <g transform="translate(80,56)">
+    <svg x="0" y="0" width="36" height="36" viewBox="0 0 140 140" aria-hidden="true">
+      <polygon points="58,37.5 79,37.5 120,102.5 99,102.5" fill="#EEF1F4"/>
+      <polygon points="42,68.5 65,68.5 42,102.5 20,102.5" fill="#4D8DFF"/>
+    </svg>
+    <text x="50" y="24" fill="#EEF1F4" font-family="Instrument Sans, Inter, ui-sans-serif, sans-serif" font-size="14" font-weight="600" letter-spacing="2.8">ARBH LABS</text>
+    <text x="1072" y="22" fill="#8B939E" font-family="Instrument Sans, Inter, ui-sans-serif, sans-serif" font-size="13" font-weight="500" text-anchor="end">Open source · MIT</text>
+  </g>
+  <text x="80" y="230" fill="#4D8DFF" font-family="Instrument Sans, Inter, ui-sans-serif, sans-serif" font-size="13" font-weight="600" letter-spacing="2.3">A SHIP GATE FOR AI AGENTS</text>
+  <text x="76" y="330" fill="#EEF1F4" font-family="Instrument Sans, Inter, ui-sans-serif, sans-serif" font-size="92" font-weight="650" letter-spacing="-4.6">Consequences</text>
+  <text x="80" y="390" fill="#B0B7C1" font-family="Instrument Sans, Inter, ui-sans-serif, sans-serif" font-size="23">Prove the deliverable works before you hand it over.</text>
+  <text x="80" y="422" fill="#B0B7C1" font-family="Instrument Sans, Inter, ui-sans-serif, sans-serif" font-size="23">Every miss becomes a checklist line.</text>
+  <line x1="80" y1="470" x2="1200" y2="470" stroke="#1C2128" stroke-width="1"/>
+  <g font-family="Instrument Sans, Inter, ui-sans-serif, sans-serif">
+    <text x="80" y="500" fill="#4D8DFF" font-size="11" font-weight="650" letter-spacing="1.8">01</text>
+    <text x="80" y="524" fill="#EEF1F4" font-size="16" font-weight="600">Work</text>
+    <text x="80" y="546" fill="#8B939E" font-size="13">The agent finishes the deliverable.</text>
+    <line x1="370" y1="486" x2="370" y2="560" stroke="#1C2128" stroke-width="1"/>
+    <text x="398" y="500" fill="#4D8DFF" font-size="11" font-weight="650" letter-spacing="1.8">02</text>
+    <text x="398" y="524" fill="#EEF1F4" font-size="16" font-weight="600">Gate</text>
+    <text x="398" y="546" fill="#8B939E" font-size="13">A script checks the artifact, not the claim.</text>
+    <line x1="690" y1="486" x2="690" y2="560" stroke="#1C2128" stroke-width="1"/>
+    <text x="718" y="500" fill="#4D8DFF" font-size="11" font-weight="650" letter-spacing="1.8">03</text>
+    <text x="718" y="524" fill="#EEF1F4" font-size="16" font-weight="600">Pass</text>
+    <text x="718" y="546" fill="#8B939E" font-size="13">Hand it to the owner with proof.</text>
+    <line x1="980" y1="486" x2="980" y2="560" stroke="#1C2128" stroke-width="1"/>
+    <text x="1008" y="500" fill="#4D8DFF" font-size="11" font-weight="650" letter-spacing="1.8">04</text>
+    <text x="1008" y="524" fill="#EEF1F4" font-size="16" font-weight="600">Miss</text>
+    <text x="1008" y="546" fill="#8B939E" font-size="13">Own it, fix the gate, log a strike.</text>
+  </g>
+</svg>

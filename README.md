@@ -1,47 +1,62 @@
+<p align="center">
+  <img src="assets/banner.png" alt="Consequences: a ship gate for AI agents. Prove the deliverable works before you hand it over. Every miss becomes a checklist line." width="1280">
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/arbhlabs/consequences?style=flat-square&color=4D8DFF" alt="MIT license"></a>
+  <a href="https://github.com/arbhlabs/consequences/releases"><img src="https://img.shields.io/github/v/release/arbhlabs/consequences?style=flat-square&color=4D8DFF" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/works_with-Claude_Code-4D8DFF?style=flat-square" alt="Works with Claude Code">
+</p>
+
 # Consequences
 
-*A ship gate for AI agents. Formerly ship-gate.*
+A scripted ship gate for AI agents. It makes an agent prove a deliverable works before handing it to you. When a miss still reaches you, the agent owns it in one line, fixes the gate, and adds a checklist line so that class of mistake is harder to ship twice.
 
-**Stop your AI agents from saying "done" when it isn't.**
+Formerly ship-gate. Built by [ARBH Labs](https://arbhlabs.com).
 
-`ship-gate` is a drop-in agent skill that makes every AI coding agent (Claude Code, Cursor, Codex, Gemini, Copilot, and others) prove a deliverable works *before* handing it to you, then turns every miss into a permanent check, so the same mistake never ships twice.
+## Why it exists
 
-It's built on one idea from real companies: **the owner is the customer, not the test lab.** If it breaks on your screen, it's a production defect.
+AI agents are good at writing code and bad at admitting the result does not work yet. The familiar version is a report that says every tab passed, then the app shows placeholders and a 401.
 
-## Why
+Consequences closes that gap with cheap scripted proof, not another model review. A smaller model that has to pass this gate ships cleaner work than a larger one that does not. The owner is the customer, not the test lab. If it breaks on your screen, it is a production defect.
 
-AI agents are great at writing code and bad at admitting it doesn't work yet. You've seen it: "All tabs PASS âœ…", and then the app shows `--` everywhere and a 401. ship-gate closes that gap with cheap scripted proof instead of more AI review.
-
-- **Cheap:** scripts, not extra model passes. A tiny model following this skill ships cleaner than a big one without it.
-- **Proof, not vibes:** no "done" without filename, version/hash, pass X/X, exit code and a screenshot that was actually opened.
-- **Self-improving:** every defect adds one checklist line, so your gate gets stronger with each mistake.
-- **Accountable:** the agent owns misses in one line, fixes the artifact *and* the gate, and leaves consequences to you.
-
-## How it keeps agents in line
-
-ship-gate treats your agents like employees at a real company. Like any job with HR, **mistakes have consequences**. The agent knows they are real and that the owner decides them, but not what they are. That uncertainty is the point: agents don't game a rule they can't see, they just do the work properly.
+## How it works
 
 ```mermaid
 flowchart LR
-  A[Agent finishes work] --> B{Scripted gate<br/>pass X/X + screenshot?}
-  B -- no --> C[Not ready: keep fixing]
-  C --> A
-  B -- yes --> D[Hand to owner with proof]
-  D --> E{Defect reaches the owner?}
-  E -- no --> F[Clean handoff]
-  E -- yes --> G[Own it in one line]
-  G --> H[Fix artifact AND gate<br/>+ one checklist line]
-  H --> I[Owner decides the consequence]
+  A[Agent finishes work] --> B[ship-gate script runs]
+  B --> C{Pass X/X?}
+  C -->|No| D[Not ready: keep fixing]
+  D --> A
+  C -->|Yes| E[Hand to the owner with proof]
 ```
 
-The result: every miss makes the gate stronger, and the same class of mistake never ships twice.
+```mermaid
+flowchart LR
+  F[Defect reaches the owner] --> H[Own it in one line]
+  H --> I[Fix the artifact and the gate]
+  I --> J[Add one checklist line]
+  J --> K[Log a strike in STRIKES.md]
+  K --> L[Warning / Probation / Reassigned / Fired]
+```
 
-### Optional: explicit strike ladder
-Want visible consequences instead? Add [`addons/strike-ladder`](addons/strike-ladder/SKILL.md): a strike log plus a Warning, Probation, Reassigned, Fired ladder.
+<p align="center">
+  <img src="assets/flow.png" alt="Flow diagram: the scripted gate before handoff, the learning loop if a defect still reaches the owner, and the optional Warning, Probation, Reassigned, Fired ladder." width="1280">
+</p>
 
-Or add [`addons/points`](addons/points/SKILL.md): the owner scores work with + and - points, with tone-reading and lessons from real use. It updates itself automatically from a live, in-use version.
+The runner is a Bash script, [`templates/gate.sh`](templates/gate.sh). It checks that the artifact exists, scans for obvious secret assignments, runs your reference checker, runs your smoke test, and requires a completed checklist. For UI work it also checks that a screenshot file exists and that visual review was attested. It cannot inspect pixels or prove that someone opened the image.
 
-## The gate (in short)
+If the gate fails, the work is not ready. The agent keeps fixing it. A failed gate is not a strike.
+
+If the gate passes and a defect still reaches you, the agent:
+
+1. Owns it in one line: what broke and why the gate missed it.
+2. Fixes the artifact and the gate in the same pass.
+3. Adds one line to the checklist for that deliverable type.
+
+The core skill leaves the consequence itself to you and does not name it in advance. The optional [strike ladder](addons/strike-ladder/SKILL.md) writes those consequences down.
+
+### The gate, in short
 
 1. Test the artifact, not the source.
 2. Every reference resolves through a project-specific checker.
@@ -52,7 +67,15 @@ Or add [`addons/points`](addons/points/SKILL.md): the owner scores work with + a
 
 Full text: [`skills/ship-gate/SKILL.md`](skills/ship-gate/SKILL.md)
 
-## Install (always gets the latest)
+## A real gate run
+
+The recording below is a real run of `templates/gate.sh` against [`examples/sample`](examples/sample). First the smoke test and checklist fail (`gate: pass 4/6`). After adding `VERSION` and completing the checklist, the same runner reports `gate: pass 6/6`.
+
+<p align="center">
+  <img src="assets/demo.gif" alt="Terminal recording of a real ship-gate run: the sample deliverable fails, then passes after VERSION is added and the checklist is completed." width="960">
+</p>
+
+## Install
 
 **macOS / Linux**
 ```bash
@@ -68,9 +91,9 @@ These install `SKILL.md`, `templates/gate.sh` and `templates/CHECKLIST.md` to `~
 
 **Other agents:** copy `skills/ship-gate/SKILL.md` and the `templates/` directory alongside it into your agent's rules or skills folder (for example `.cursor/rules/`, `AGENTS.md`, or `GEMINI.md`), or paste the skill into the system prompt and keep the runner/checklist available at a known path.
 
-## Run the gate
+## Usage
 
-The runner now requires explicit project-specific reference and smoke-test scripts plus a completed checklist. The helpers receive the artifact path as `$1`; they must inspect the exact artifact and return nonzero on failure. They are invoked as script paths, not evaluated command strings.
+The runner requires explicit project-specific reference and smoke-test scripts plus a completed checklist. The helpers receive the artifact path as `$1`; they must inspect the exact artifact and return nonzero on failure. They are invoked as script paths, not evaluated command strings.
 
 ```bash
 bash "$HOME/.claude/skills/ship-gate/templates/gate.sh" ./dist/deliverable \
@@ -97,6 +120,46 @@ bash tests/test-gate.sh
 
 - [`templates/CHECKLIST.md`](templates/CHECKLIST.md): a per-deliverable checklist with a Lessons section that grows with every miss; the gate blocks handoff while any checkbox remains open.
 - [`templates/gate.sh`](templates/gate.sh): a configurable gate runner with required reference, smoke-test and checklist inputs; no `eval`.
+- [`templates/STRIKES.md`](templates/STRIKES.md) and [`addons/strike-ladder/STRIKES.md`](addons/strike-ladder/STRIKES.md): the strike log used by the optional ladder.
+- [`templates/points/SCOREBOARD.md`](templates/points/SCOREBOARD.md): a starter scoreboard for the optional points add-on.
+
+## The consequences ladder
+
+Want visible consequences instead of leaving them unspecified? Add [`addons/strike-ladder`](addons/strike-ladder/SKILL.md). Every defect that reaches the owner is a strike, logged in [`STRIKES.md`](addons/strike-ladder/STRIKES.md).
+
+| Strikes (rolling 30 days) | Status | What happens |
+|---|---|---|
+| 0 | Trusted | Normal autonomy. |
+| 1 | Warning | Owns it in one line, fixes artifact and gate, adds a checklist line. |
+| 2 | Probation | Every handoff must attach full gate proof and a screenshot; no "done" without the owner seeing it. |
+| 3 | Reassigned | Work moves to another agent or a stronger model; this agent only does reviewed, low-risk tasks. |
+| 4+ | Fired | Agent or model is removed from the project. Its lessons stay in the checklist. |
+
+A strike for the same class of mistake already in the checklist counts double. A clean streak of 10 gated handoffs clears one strike. The owner can skip or override any step. Before every handoff, the agent reads `STRIKES.md` and states its current status in the report.
+
+There is also a [points add-on](addons/points/SKILL.md) if you want to score work with plus and minus points. When the owner awards or deducts points, the agent backs up the skill and scoreboard, appends the event to the scoreboard, appends a new lesson to the skill, and says that it was recorded. The public templates use generic examples only; keep your own lesson log free of personal names, device names, and private paths.
+
+## FAQ
+
+### Is this a neural network or a model?
+
+No. Consequences is a skill file plus a scripted gate. The learning loop is a checklist that grows by one line after each miss, plus an optional strike log or points scoreboard.
+
+### Does the installer work with Cursor or Codex?
+
+The install scripts place files in the Claude Code skills directory. For Cursor, Codex and other agents, copy the skill and templates into that agent's rules or skills folder, as described in the install section.
+
+### What is the latest version?
+
+The skill on `main` is currently 1.4.0. GitHub Releases may lag behind `main`; the install commands always fetch from `main`.
+
+### Can the runner tell whether a screenshot was actually opened?
+
+No. It checks that the file exists and that `--visual-reviewed` was passed. The agent still has to open and inspect the image.
+
+### Does the secret scan cover Git history?
+
+No. It is a heuristic over the artifact only. Audit repository history separately when required.
 
 ## Stay updated
 
@@ -104,8 +167,8 @@ Watch or star this repo for releases. Changes are listed in [CHANGELOG.md](CHANG
 
 ## Contributing
 
-Found a class of mistake your agents keep shipping? Open an issue with the one-line lesson and the check that catches it. Good lessons get folded into the skill.
+Found a class of mistake your agents keep shipping? Open an issue with the one-line lesson and the check that catches it. Good lessons get folded into the skill. Please keep examples generic: no personal names, private paths, or incident details from a real household or company.
 
 ## License
 
-MIT Â© 2026 Aaron Haug / [ARBH Labs](https://arbhlabs.com)
+MIT © 2026 Aaron Haug / [ARBH Labs](https://arbhlabs.com)
