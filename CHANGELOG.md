@@ -3,6 +3,7 @@
 ## Unreleased
 - Public README, diagrams, and a recorded real run of the gate on a sample deliverable.
 - Points add-on genericized for public use, with a scoreboard template and a rule to record awards automatically.
+- Clarified the Warning, Probation, Reassigned, and Fired ladder in the README and add-on docs. Fired is a last resort that has not been needed yet. The usual consequence is that the owner stops using that agent or model.
 
 ## 1.4.0
 - Removed `eval` from the gate runner; project helper scripts are invoked as quoted paths with the artifact passed as a single argument.

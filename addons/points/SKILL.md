@@ -70,7 +70,7 @@ The lines below are generic examples. After a real award, append your own lesson
 2. Written warning: -3 to -5, or the same mistake twice. The lesson goes under "What lost points".
 3. Probation: repeat after a warning. Every change needs a verified dry run and owner-visible proof before it ships.
 4. Replaced: repeated breakage of live things, hiding failures, or ignoring a standing rule. The task moves to another agent or model, and the brief records why.
-5. Fired: lying about a result, destroying data, or leaking secrets. Access is removed and the incident is written to the project's notes.
+5. Fired: last resort, not used yet, for things like lying about a result, destroying data, or leaking secrets. The owner stops using that agent or model. In an extreme case, the program could be uninstalled. The incident is written to the project's notes.
 
 Rewards mirror this: a run of +3s can earn more autonomy on reversible work, and is noted in the scoreboard.
 

@@ -41,7 +41,7 @@ flowchart LR
 ```
 
 <p align="center">
-  <img src="assets/flow.png" alt="Flow diagram: the scripted gate before handoff, the learning loop if a defect still reaches the owner, and the optional Warning, Probation, Reassigned, Fired ladder." width="1280">
+  <img src="assets/flow.png" alt="Flow diagram: the scripted gate before handoff, the learning loop if a defect still reaches the owner, and the optional Warning, Probation, Reassigned, Fired ladder. Fired is a last resort." width="1280">
 </p>
 
 The runner is a Bash script, [`templates/gate.sh`](templates/gate.sh). It checks that the artifact exists, scans for obvious secret assignments, runs your reference checker, runs your smoke test, and requires a completed checklist. For UI work it also checks that a screenshot file exists and that visual review was attested. It cannot inspect pixels or prove that someone opened the image.
@@ -54,7 +54,7 @@ If the gate passes and a defect still reaches you, the agent:
 2. Fixes the artifact and the gate in the same pass.
 3. Adds one line to the checklist for that deliverable type.
 
-The core skill leaves the consequence itself to you and does not name it in advance. The optional [strike ladder](addons/strike-ladder/SKILL.md) writes those consequences down.
+The core skill leaves the next step to you. It does not name it in advance. The optional [strike ladder](addons/strike-ladder/SKILL.md) writes a default list, if you want one.
 
 ### The gate, in short
 
@@ -125,17 +125,19 @@ bash tests/test-gate.sh
 
 ## The consequences ladder
 
-Want visible consequences instead of leaving them unspecified? Add [`addons/strike-ladder`](addons/strike-ladder/SKILL.md). Every defect that reaches the owner is a strike, logged in [`STRIKES.md`](addons/strike-ladder/STRIKES.md).
+If you want a written list of what happens after a miss reaches you, add the optional [`strike ladder`](addons/strike-ladder/SKILL.md). Each of those misses is a strike, recorded in [`STRIKES.md`](addons/strike-ladder/STRIKES.md).
 
 | Strikes (rolling 30 days) | Status | What happens |
 |---|---|---|
-| 0 | Trusted | Normal autonomy. |
-| 1 | Warning | Owns it in one line, fixes artifact and gate, adds a checklist line. |
-| 2 | Probation | Every handoff must attach full gate proof and a screenshot; no "done" without the owner seeing it. |
-| 3 | Reassigned | Work moves to another agent or a stronger model; this agent only does reviewed, low-risk tasks. |
-| 4+ | Fired | Agent or model is removed from the project. Its lessons stay in the checklist. |
+| 0 | Trusted | The agent works as usual. |
+| 1 | Warning | The agent says what went wrong, in one line. It fixes the work and the gate, and adds a checklist line so that mistake is harder to repeat. |
+| 2 | Probation | The agent cannot call the work "done" until the owner has seen the proof. Every handoff must include the full gate result and a screenshot. |
+| 3 | Reassigned | This work goes to another agent or a stronger model. The original agent only does small, reviewed, low-risk tasks. |
+| 4+ | Fired | Last resort. The owner stops using that agent or model. |
 
-A strike for the same class of mistake already in the checklist counts double. A clean streak of 10 gated handoffs clears one strike. The owner can skip or override any step. Before every handoff, the agent reads `STRIKES.md` and states its current status in the report.
+Fired is a last resort, and it has not been needed yet. If an agent or model keeps missing what was asked, or keeps frustrating the owner, the owner stops using it. In an extreme case, the owner could uninstall the program. Lessons already written in the checklist stay there.
+
+A strike for the same kind of mistake already in the checklist counts double. A clean streak of 10 gated handoffs clears one strike. The owner can skip or override any step. Before every handoff, the agent reads `STRIKES.md` and states its current status in the report.
 
 There is also a [points add-on](addons/points/SKILL.md) if you want to score work with plus and minus points. When the owner awards or deducts points, the agent backs up the skill and scoreboard, appends the event to the scoreboard, appends a new lesson to the skill, and says that it was recorded. The public templates use generic examples only; keep your own lesson log free of personal names, device names, and private paths.
 
