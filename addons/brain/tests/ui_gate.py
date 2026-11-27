@@ -215,6 +215,7 @@ def main():
                       "Idle." in neg and "Only one scored event" in neg and "restarted a live service (2026-01-04" in neg, neg)
                 p.keyboard.press("Escape")
                 p.wait_for_timeout(500)
+                experience_view(p, layout)
                 controls(p, scene_ok)
             p.close()
 
@@ -276,6 +277,27 @@ def runner_view(p, name, tag):
     if ARGS.shots:
         p.screenshot(path=os.path.join(ARGS.shots, tag.replace(" ", "-") + ".png"))
     return body
+
+
+def experience_view(p, layout):
+    p.click('#lb-sort [data-sort="xp"]')
+    p.wait_for_timeout(500)
+    xp = p.evaluate("Array.prototype.map.call(document.querySelectorAll('[data-leader] .score'),function(e){return e.textContent;})")
+    nums = [int(t.split()[0]) for t in xp if t.endswith("XP")]
+    check("click: Proven orders the leaderboard by experience", len(nums) == len(xp) and nums == sorted(nums, reverse=True) and nums[0] > 0, xp[:6])
+    layout(p, "leaderboard by experience")
+    p.click('#lb-sort [data-sort="points"]')
+    p.wait_for_timeout(500)
+    vals = [r["val"] for r in p.evaluate("window.__cbTest.rows()")]
+    check("click: Points restores the points order", vals == sorted(vals, reverse=True), vals[:6])
+    p.click('#detail-tabs [data-tab="exp"]')
+    p.wait_for_timeout(500)
+    body = p.inner_text('[data-panel="detail"] .body')
+    check("click: XP tab ranks programs and models and says what is unnamed",
+          all(w in body.lower() for w in ("programs", "models", "claude code", "used most", "% good", "not name")), body[:500])
+    layout(p, "experience tab")
+    p.click('#detail-tabs [data-tab="moves"]')
+    p.wait_for_timeout(500)
 
 
 def controls(p, scene_ok):

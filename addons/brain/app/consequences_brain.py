@@ -26,7 +26,7 @@ import hashlib
 import threading
 import datetime
 
-VERSION = "1.6.1"
+VERSION = "1.7.0"
 APP_DIR = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__))
 RES_DIR = getattr(sys, "_MEIPASS", APP_DIR)          # bundled resources (ui/, icon) in the packaged app
 _APPDATA = os.environ.get("APPDATA") or os.path.join(os.path.expanduser("~"), ".config")
@@ -441,6 +441,66 @@ def load_skills():
     return items
 
 
+# ---------------------------------------------------------------- experience (which tools and models have proven work)
+MODEL_RX = re.compile(r"\b(fable|opus|sonnet|haiku|chatgpt|gpt|gemini|deepseek|grok(?! bot)|llama|qwen|mistral|kimi)\b(?! cli)"
+                      r"(?:[ -]?v?(\d+(?:\.\d+)?[a-z]?)(?![\w.]))?", re.I)
+_MODEL_NAMES = {"gpt": "GPT", "chatgpt": "GPT", "deepseek": "DeepSeek"}
+PROGRAM_RX = [(n, re.compile(p, re.I)) for n, p in [
+    ("Claude Code", r"claude[ -]code"), ("Codex", r"\bcodex\b"), ("Cursor", r"\bcursor\b"), ("OpenCode", r"open ?code"),
+    ("Gemini CLI", r"gemini cli"), ("Antigravity", r"antigravity"), ("Copilot", r"\bcopilot\b"), ("Aider", r"\baider\b")]
+    + [(n, re.escape(n)) for n in CFG.get("programs", []) if isinstance(n, str)]]
+
+
+def model_of(runner):
+    m = MODEL_RX.search(runner or "")
+    if not m:
+        return None
+    name = _MODEL_NAMES.get(m.group(1).lower(), m.group(1).capitalize())
+    return name + (" " + m.group(2) if m.group(2) else "")
+
+
+def program_of(runner):
+    hits = [(m.start(), n) for n, rx in PROGRAM_RX for m in [rx.search(runner or "")] if m]
+    return min(hits)[1] if hits else None
+
+
+def experience(rows):
+    """Scored jobs per runner, model and program, from the ledger only. Proven XP = points gained x share of jobs that
+    went well, so volume counts only when it is backed by good results. A model or program counts only when the ledger
+    names it. Pool rows and reattributions (points moving, not work) are left out; waived rows count as a job only."""
+    groups = {"agents": {}, "models": {}, "programs": {}}
+    unnamed, total = {"models": 0, "programs": 0}, 0
+    for r in rows:
+        if is_pool(r["agent"]) or re.search(r"reattribution", r["runner"], re.I):
+            continue
+        total += 1
+        model, program = model_of(r["runner"]), program_of(r["runner"])
+        for kind, key in (("agents", r["agent"]), ("models", model), ("programs", program)):
+            if not key:
+                unnamed[kind] += 1
+                continue
+            g = groups[kind].setdefault(key, {"name": key, "jobs": 0, "good": 0, "bad": 0, "gained": 0, "lost": 0, "programs": {}})
+            g["jobs"] += 1
+            v = r["eff"]
+            g["good"] += v > 0
+            g["bad"] += v < 0
+            g["gained"] += max(v, 0)
+            g["lost"] += min(v, 0)
+            if program:
+                g["programs"][program] = g["programs"].get(program, 0) + 1
+    out = {"jobs": total, "unnamed": unnamed}
+    for kind, found in groups.items():
+        for g in found.values():
+            judged = g["good"] + g["bad"]
+            g["rate"] = int(100 * g["good"] / judged + 0.5) if judged else None
+            g["xp"] = int(g["gained"] * g["good"] / judged + 0.5) if judged else 0
+            g["net"] = g["gained"] + g["lost"]
+            g["top"] = max(g["programs"], key=g["programs"].get) if g["programs"] else None
+            del g["programs"]
+        out[kind] = sorted(found.values(), key=lambda g: (-g["xp"], -g["net"], -g["jobs"], g["name"]))
+    return out
+
+
 def lessons_for(name, text, limit=4):
     """Lesson lines that name this runner in the skill file: bullets that say "lesson", or sit under a heading about
     lessons or lost points. Dated lines come first, newest first."""
@@ -677,7 +737,7 @@ def build_graph():
     return {"nodes": nodes, "links": links, "totals": totals, "event_total": len(all_rows),
             "agent_counts": counts, "splits": [["a:" + a, "a:" + b] for a, b in splits],
             "activity": activity, "asks": asks, "now": time.time(),
-            "pools": pools, "net": sum(v for k, v in totals.items() if k != "ALL agents"), "brand": BRAND,
+            "pools": pools, "experience": experience(rows), "net": sum(v for k, v in totals.items() if k != "ALL agents"), "brand": BRAND,
             "ledger_name": "sample data" if DEMO["on"] else os.path.basename(SCOREBOARD), "sample": DEMO["on"], "app_version": VERSION,
             "setup": {"empty": not all_rows and not asks and not activity, "ledger": SCOREBOARD, "cli": cli_prefix()},
             "framework": {"ranks": [{"name": n, "from": f, "perks": pk,

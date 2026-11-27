@@ -4,6 +4,7 @@ A live desktop window for the [points add-on](../points/SKILL.md). It shows your
 
 - **Who leads.** Node size is net score. Colour runs best to worst: green (top 3), yellow (+20 or more), orange (0 to +19), red (below 0, even in the top 3).
 - **What one runner is up to.** Click its bubble: what it is doing now, rank and trend, latest points, recorded lessons, and work waiting for points.
+- **Proven experience.** Switch the leaderboard to **Proven**, or open the **XP** tab for programs and models. XP = points gained x the share of jobs that went well, counted from your ledger only. A model or program counts only when the ledger names it; add your own with `"programs"` in config.json.
 - **Who is working right now.** The node pulses and a comet circles it.
 - **Who finished and is waiting for points.** A gold card appears with the agent's own suggested amount. One click on **Accept** writes it to the ledger.
 
@@ -34,7 +35,7 @@ python addons/brain/app/consequences_brain.py
 Check what you have:
 
 ```
-python addons/brain/app/consequences_brain.py --version     # prints 1.6.1
+python addons/brain/app/consequences_brain.py --version     # prints 1.7.0
 python addons/brain/app/consequences_brain.py --selftest    # loads your ledger, prints a summary, never opens a window
 ```
 

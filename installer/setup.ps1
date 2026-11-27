@@ -8,7 +8,7 @@ param(
     [string]$Root = '', [string]$Payload = $PSScriptRoot
 )
 $ErrorActionPreference = 'Stop'
-$Version = '1.6.1'
+$Version = '1.7.0'
 
 # Where things go. -Root redirects everything (used by the automated test; nothing touches the real profile then).
 if ($Root) {

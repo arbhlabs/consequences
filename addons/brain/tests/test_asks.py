@@ -288,7 +288,7 @@ class Cli(unittest.TestCase):
     def test_version(self):
         out = run_py([self.script, "--version"], self.config(os.path.join(self.tmp, "ledger.jsonl")))
         self.assertEqual(out.returncode, 0, out.stderr[-500:])
-        self.assertEqual(out.stdout.strip(), "1.6.1")
+        self.assertEqual(out.stdout.strip(), "1.7.0")
 
     def test_award_appends_one_jsonl_event(self):
         ledger = os.path.join(self.tmp, "ledger.jsonl")

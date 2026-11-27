@@ -188,7 +188,7 @@ The install scripts place files in the Claude Code skills directory. For Cursor,
 
 ### What is the latest version?
 
-The skill on `main` is currently 1.6.1. GitHub Releases may lag behind `main`; the install commands always fetch from `main`.
+The skill on `main` is currently 1.7.0. GitHub Releases may lag behind `main`; the install commands always fetch from `main`.
 
 ### Can the runner tell whether a screenshot was actually opened?
 

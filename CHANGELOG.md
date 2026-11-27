@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.7.0
+
+- Proven experience: the leaderboard shows jobs, share that went well and XP for each runner, and can be ordered by XP ("Proven").
+- New XP tab: programs and models ranked by XP, with the most used program. Ledger data only; jobs that name no model or program are counted as such.
+
 ## 1.6.1
 
 - Fixed: in narrow and half-screen layouts the Detail overview could show no timeline lines when the entries were long. The panel now scrolls instead.

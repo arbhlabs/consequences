@@ -179,6 +179,10 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--holo);outline-o
 .pos{color:var(--g)}.neg{color:var(--neg)}
 .t-green{color:var(--g)}.t-yellow{color:var(--y)}.t-orange{color:var(--o)}.t-red{color:var(--neg)}
 .legend b{font-weight:700}
+#leaderboard-meta{display:none}
+.panel-head .tabs{flex:none;gap:2px}
+.panel-head:has(.tabs){flex-wrap:wrap;row-gap:4px}
+.panel-head .tabs button{padding:0 5px;letter-spacing:.03em}
 .detail.runner .body,.detail .body.scroll{overflow:auto}
 .detail .body.scroll>*{flex-shrink:0}
 .detail .body.scroll .timeline{flex:0 0 auto;overflow:visible}
@@ -340,7 +344,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--holo);outline-o
   </header>
   <main class="workspace">
     <section class="panel leaderboard" data-panel="leaderboard" aria-label="Leaderboard">
-      <div class="panel-head"><h2>Leaderboard</h2><span id="leaderboard-meta">&mdash;</span></div>
+      <div class="panel-head"><h2>Leaderboard</h2><span id="leaderboard-meta">&mdash;</span><div class="tabs" id="lb-sort"><button type="button" data-sort="points" class="on" title="Order by net points">Points</button><button type="button" data-sort="xp" title="Order by proven experience: points gained times the share of jobs that went well">Proven</button></div></div>
       <div class="rows" id="leaderboard-rows"><div class="meta" style="padding:10px 6px">No data yet</div></div>
       <div class="panel-foot"><span id="pool-note"></span><span class="legend"><b class="t-green">Green</b> top 3 · <b class="t-yellow">Yellow</b> +20 or more · <b class="t-orange">Orange</b> 0 to +19 · <b class="t-red">Red</b> below 0, even in the top 3.</span> Size = score. Moving light = working or just scored.</div>
     </section>
@@ -367,7 +371,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--holo);outline-o
     <aside class="rail" aria-label="Details and activity">
       <section class="panel detail" data-panel="detail" aria-label="Selected detail">
         <div class="panel-head"><h2>Detail</h2><span id="detail-source">&mdash;</span><button type="button" id="detail-close">Close</button>
-          <div class="tabs" id="detail-tabs" hidden><button type="button" data-tab="moves" class="on">Moves</button><button type="button" data-tab="ranks">Ranks</button><button type="button" data-tab="rules">Rules</button></div></div>
+          <div class="tabs" id="detail-tabs" hidden><button type="button" data-tab="moves" class="on">Moves</button><button type="button" data-tab="ranks">Ranks</button><button type="button" data-tab="rules">Rules</button><button type="button" data-tab="exp" title="Experience by program and model">XP</button></div></div>
         <div class="body">
           <div class="kicker none" id="detail-kicker">Overview</div>
           <div class="bigscore" id="detail-score"></div>
@@ -410,6 +414,9 @@ function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 function pad(n){return (n<10?'0':'')+n;}
 function shortDate(ts){if(!ts)return '—';var m=String(ts).match(/^(\d{4})-(\d{2})-(\d{2})/);if(!m)return String(ts).slice(0,10);var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return m[3]+' '+months[Number(m[2])-1]+' '+m[1].slice(2);}
 function stamp(ts){if(!ts)return 'No data yet';var d=new Date(Number(ts)*1000);return isNaN(d.getTime())?'No data yet':'Live '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());}
+var lbSort='points';
+function expOf(label){var l=(extra.experience&&extra.experience.agents)||[];for(var i=0;i<l.length;i++)if(l[i].name===label)return l[i];return null;}
+function expLine(g){return g.jobs+' job'+(g.jobs===1?'':'s')+(g.rate==null?'':' · '+g.rate+'% good');}
 function tierMap(){   // the four-step scale: below 0 is red; else the top 3 are green; else +20 or more yellow, 0..+19 orange
   var m={};agents.forEach(function(a,i){var v=Number(a.val)||0;m[a.id]=v<0?'red':(i<3?'green':(v>=20?'yellow':'orange'));});return m;}
 function words(t,max){   // plain words for the runner view: no paths, links, markup or JSON
@@ -426,7 +433,7 @@ function normalize(src){
   var d=(src&&src.graph)?src.graph:(src||{});
   return {nodes:d.nodes||[],totals:d.totals||{},updated:d.updated||0,version:d.version==null?-1:d.version,
           splits:d.splits||[],eventTotal:d.event_total||0,agentCounts:d.agent_counts||{},pools:d.pools||{},net:d.net,brand:d.brand||'',ledger:d.ledger_name||'',activity:d.activity||[],asks:d.asks||[],now:d.now||0,framework:d.framework||{ranks:[],rules:[]},
-          sample:!!d.sample,setup:d.setup||{},appVersion:d.app_version||''};
+          sample:!!d.sample,setup:d.setup||{},appVersion:d.app_version||'',experience:d.experience||{}};
 }
 
 /* ---------------------------------------------------------------- springs (panels) */
@@ -477,7 +484,7 @@ function index(data){
   nodes.filter(function(n){return n.type==='point'||n.type==='strike';}).forEach(function(n){var a=n.agent||'';(eventsByAgent[a]=eventsByAgent[a]||[]).push(n);});
   Object.keys(eventsByAgent).forEach(function(k){eventsByAgent[k].sort(function(a,b){return String(b.ts||'').localeCompare(String(a.ts||''));});});
   extra={splits:data.splits,eventTotal:data.eventTotal,agentCounts:data.agentCounts,pools:data.pools||{},net:data.net,brand:data.brand,ledger:data.ledger,
-         sample:data.sample,setup:data.setup||{},appVersion:data.appVersion};
+         sample:data.sample,setup:data.setup||{},appVersion:data.appVersion,experience:data.experience||{}};
   setActivity(data.activity,data.now);
   fw=data.framework||{ranks:[],rules:[]};
   asks=(data.asks||[]).filter(function(k){return !resolved[k.dir+'/'+k.file];});
@@ -698,14 +705,16 @@ function renderLeaderboard(changed,first){
   if(animOK()&&!first){var olds=host.querySelectorAll('[data-leader]');for(var i=0;i<olds.length;i++)if(!olds[i].hidden)before[olds[i].getAttribute('data-leader')]=olds[i].getBoundingClientRect().top;}
   var max=agents.reduce(function(m,a){return Math.max(m,Math.abs(Number(a.val)||0));},1);
   var tm=tierMap();
-  host.innerHTML=agents.map(function(a,i){
-    var v=Number(a.val)||0,cls='t-'+tm[a.id],s=scoreSpring(a);
+  var byXp=lbSort==='xp',xpv=function(a){var g=expOf(a.label);return g?g.xp:0;};
+  var order=byXp?agents.slice().sort(function(a,b){return xpv(b)-xpv(a)||(Number(b.val)||0)-(Number(a.val)||0);}):agents;
+  host.innerHTML=order.map(function(a,i){
+    var v=Number(a.val)||0,cls='t-'+tm[a.id],s=scoreSpring(a),g=expOf(a.label);
     var w=clamp(Math.round(Math.abs(v)/max*100),3,100);
     var wk=work[a.label];
     return '<button class="row '+(state.selected===a.id?'selected':'')+(wk?' working':'')+'" data-leader="'+esc(a.id)+'" data-val="'+v+'" data-tier="'+tm[a.id]+'" aria-label="Select '+esc(a.label)+'">'+
       '<span class="rank">'+String(i+1).padStart(2,'0')+'</span>'+
-      '<span class="who"><i class="sw '+cls+'"></i><span class="nm"><span class="name">'+esc(a.label)+'</span><span class="standing">'+esc(a.standing||'Scored runner')+' · '+agentCount(a.label)+' ev</span>'+(wk?'<span class="work"><i class="beat"></i>working'+(wk.n>1?' ×'+wk.n:'')+(wk.task?'<span class="task"> · '+esc(wk.task)+'</span>':'')+'</span>':'')+'</span></span>'+
-      '<span class="score '+cls+'" data-score-for="'+esc(a.id)+'">'+fmt(s.x)+'</span>'+
+      '<span class="who"><i class="sw '+cls+'"></i><span class="nm"><span class="name">'+esc(a.label)+'</span><span class="standing">'+esc(a.standing||'Scored runner')+' · '+(g?expLine(g)+(byXp?' · '+fmt(v)+' pts':' · XP '+g.xp):agentCount(a.label)+' jobs')+'</span>'+(wk?'<span class="work"><i class="beat"></i>working'+(wk.n>1?' ×'+wk.n:'')+(wk.task?'<span class="task"> · '+esc(wk.task)+'</span>':'')+'</span>':'')+'</span></span>'+
+      (byXp?'<span class="score '+cls+'" title="Proven XP">'+xpv(a)+' XP</span>':'<span class="score '+cls+'" data-score-for="'+esc(a.id)+'">'+fmt(s.x)+'</span>')+
       spark(a,v,tm[a.id])+'<span class="bar '+cls+'"><i style="width:'+w+'%"></i></span></button>';
   }).join('')+'<div class="more" hidden></div>';
   fitRows(host);
@@ -734,9 +743,21 @@ function renderDetail(id){
       meta=document.getElementById('detail-meta'),score=document.getElementById('detail-score'),
       src=document.getElementById('detail-source'),host=document.getElementById('timeline');
   kicker.removeAttribute('data-base');
-  document.querySelector('.detail').classList.toggle('runner',!!(n&&n.type==='agent'));
+  document.querySelector('.detail').classList.toggle('runner',!!(n&&n.type==='agent')||(!n&&tab==='exp'));
   if(n&&n.type==='agent'){var tb=document.getElementById('detail-tabs');tb.hidden=true;src.hidden=false;renderRunner(n);return;}
   var tabsEl=document.getElementById('detail-tabs');tabsEl.hidden=!!n;src.hidden=!n;
+  if(!n&&tab==='exp'){ // proven experience by program and model, from the ledger only
+    var x=extra.experience||{},progs=x.programs||[],most=progs.slice().sort(function(a,b){return b.jobs-a.jobs;})[0];
+    title.removeAttribute('data-full');kicker.textContent='Experience · proven work';kicker.className='kicker none';
+    title.textContent=(x.jobs||0)+' scored jobs';title.className='';score.textContent='';
+    meta.textContent=(most?'Used most: '+most.name+' ('+most.jobs+' jobs). ':'')+'XP = points gained × share of jobs that went well.';
+    var group=function(head,list,missing){
+      return '<div class="rv-h">'+head+'</div>'+((list||[]).map(function(g){
+        return '<div class="rank-row"><span class="rn">'+esc(g.name)+'</span><span class="rm">'+expLine(g)+' · net '+fmt(g.net)+'</span><span class="rf">'+g.xp+' XP</span></div>';
+      }).join('')||'<div class="rv-t">None named in the ledger yet.</div>')+(missing?'<div class="meta">'+missing+' job'+(missing===1?' does':'s do')+' not name one.</div>':'');};
+    host.innerHTML=group('Programs',x.programs,(x.unnamed||{}).programs)+group('Models',x.models,(x.unnamed||{}).models);
+    fitDetail();return;
+  }
   if(!n&&tab==='ranks'){ // promotion ranks, live from the consequences skill
     title.removeAttribute('data-full');kicker.textContent='Framework · promotion ranks';kicker.className='kicker none';
     title.textContent='Climb the scoreboard, earn trust';title.className='';
@@ -812,6 +833,8 @@ function renderRunner(n){   // one runner in plain words: now, standing, recent 
   html+=h('Waiting for points')+(wait.length?wait.slice(0,3).map(function(k){
     var what=words(k.why||k.task,140)||'Finished work';
     return p(what+(k.suggested!=null?' (suggests '+fmt(k.suggested)+')':'')+', '+ago(k.ts)+'.');}).join('')+(wait.length>3?p('+'+(wait.length-3)+' more in the feed.'):''):p('Nothing waiting.'));
+  var g=expOf(n.label);
+  if(g)html+=h('Experience')+p(expLine(g)+'. Proven XP '+g.xp+'.'+(g.top?' Mostly through '+g.top+'.':''));
   html+=h('Latest points')+(ev.length?ev.slice(0,4).map(function(e){
     return '<button class="tl-item" data-jump="'+esc(e.id)+'" aria-label="Open this event"><span class="tl-date">'+shortDate(e.ts)+'</span>'+
       '<span class="tl-text">'+esc(words(plain(e),160)||'Scored event')+'</span><span class="tl-val '+(Number(e.val)<0?'neg':'pos')+'">'+fmt(e.val)+'</span></button>';
@@ -967,8 +990,10 @@ function setMtab(m){document.body.setAttribute('data-mtab',m);
   requestAnimationFrame(function(){fitRows(document.getElementById('leaderboard-rows'));renderDetail(state.selected);renderFeed(null);});}
 function wire(){
   document.getElementById('mtabs').addEventListener('click',function(e){var b=e.target.closest('[data-m]');if(b)setMtab(b.getAttribute('data-m'));});
+  document.getElementById('lb-sort').addEventListener('click',function(e){var b=e.target.closest('[data-sort]');if(!b)return;
+    lbSort=b.getAttribute('data-sort');document.querySelectorAll('#lb-sort button').forEach(function(x){x.classList.toggle('on',x===b);});renderLeaderboard(null,false);});
   document.getElementById('detail-tabs').addEventListener('click',function(e){var b=e.target.closest('[data-tab]');if(!b)return;
-    tab=b.getAttribute('data-tab');document.querySelectorAll('#detail-tabs button').forEach(function(x){x.classList.toggle('on',x===b);});renderDetail(state.selected);});
+    tab=b.getAttribute('data-tab');document.querySelectorAll('#detail-tabs button').forEach(function(x){x.classList.toggle('on',x===b);});renderDetail(state.selected);renderFeed(null);});
   document.getElementById('feed-list').addEventListener('click',function(e){if(onAskClick(e)){e.stopPropagation();}},true);
   document.getElementById('ask-pill').addEventListener('click',function(){if(tiny())setMtab('feed');var c=document.querySelector('.ask-card');if(c)c.scrollIntoView({block:'nearest'});});
   document.getElementById('ob-sample').addEventListener('click',function(){if(api()&&api().sample)Promise.resolve(api().sample(true)).then(load);});
