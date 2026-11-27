@@ -179,7 +179,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--holo);outline-o
 .pos{color:var(--g)}.neg{color:var(--neg)}
 .t-green{color:var(--g)}.t-yellow{color:var(--y)}.t-orange{color:var(--o)}.t-red{color:var(--neg)}
 .legend b{font-weight:700}
-.detail.runner .body{overflow:auto}
+.detail.runner .body,.detail .body.scroll{overflow:auto}
+.detail .body.scroll>*{flex-shrink:0}
+.detail .body.scroll .timeline{flex:0 0 auto;overflow:visible}
 .detail.runner .tl-head{display:none}
 .detail.runner .timeline{flex:0 0 auto;overflow:visible}
 .detail.runner .body>*{flex-shrink:0}
@@ -628,7 +630,7 @@ function fitDetail(){
   var rail=document.querySelector('.rail'),panel=document.querySelector('.detail'),feed=document.querySelector('.feed'),
       body=panel.querySelector('.body'),title=document.getElementById('detail-title'),tl=document.getElementById('timeline');
   var expanded=panel.classList.contains('expanded');
-  panel.classList.remove('compact');
+  panel.classList.remove('compact');body.classList.remove('scroll');
   if(panel.classList.contains('runner')){   // the runner view scrolls; on the stacked rail it takes the larger share
     rail.style.gridTemplateRows='';title.style.fontSize='';
     if(getComputedStyle(rail).gridTemplateColumns.trim().split(/\s+/).length===1)rail.style.gridTemplateRows='minmax(0,2.4fr) minmax(0,1fr) auto';
@@ -669,6 +671,8 @@ function fitDetail(){
       title.appendChild(b2);
     }
   }
+  if(!panel.classList.contains('compact')&&tl.children.length&&!tl.querySelector(':scope>:not([hidden])')){   // not one line fits whole: scroll, never an empty list
+    for(var i=0;i<tl.children.length;i++)tl.children[i].hidden=false;body.classList.add('scroll');}
 }
 function spark(a,total,tier){
   /* cumulative score over this runner's ledger rows, oldest -> newest (waived rows count 0, like the totals) */

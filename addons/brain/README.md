@@ -34,7 +34,7 @@ python addons/brain/app/consequences_brain.py
 Check what you have:
 
 ```
-python addons/brain/app/consequences_brain.py --version     # prints 1.6.0
+python addons/brain/app/consequences_brain.py --version     # prints 1.6.1
 python addons/brain/app/consequences_brain.py --selftest    # loads your ledger, prints a summary, never opens a window
 ```
 

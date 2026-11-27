@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.1
+
+- Fixed: in narrow and half-screen layouts the Detail overview could show no timeline lines when the entries were long. The panel now scrolls instead.
+- The UI gate fails if a visible timeline shows none of its lines.
+
 ## 1.6.0
 - **Consequences Brain**: waiting-for-points list is capped. It shows the newest cards that fit (max 4), then one "+N older waiting · Show all" line.
 - A finished-work card only becomes a gold card when the final message ends with `Points for this? Suggested: +N (why)`. Other finished work goes to a collapsed quiet group and expires after 12 hours (suggested asks: 3 days).

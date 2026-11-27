@@ -49,7 +49,7 @@ if ARGS.config:
         shutil.copytree(src_act, ACT)       # a copy: the gate never touches the live activity folder
 else:
     cfg = {"ledger": LEDGER, "runners": [{"name": "Riley", "match": r"\briley\b"}, {"name": "Night Shift", "match": r"night[ -]shift"}]}
-    extra = [("Claude Code (Fable 5.2)", "build watcher", 355, "exactly what the owner wanted"), ("Riley", "carousel", 147, "v3 shipped"),
+    extra = [("Claude Code (Fable 5.2)", "build watcher", 355, "exactly what the owner wanted: " + "live progress, honest timings, nothing clipped, " * 14), ("Riley", "carousel", 147, "v3 shipped"),
              ("Night Shift", "queue", -37, "restarted a live service"), ("Mistral", "reel", -120, "plain motion graphics, not the story reel asked for"),
              ("Qwen", "digest", 1, "ok"), ("Kimi", "review", -16, "missed the regression"), ("UNATTRIBUTED", "night fix", 7, "nobody signed it")]
     now = time.time()
@@ -115,6 +115,9 @@ LAYOUT_JS = r"""() => {
   const fl = document.getElementById('feed-list');
   if (vis(fl)) { const kids = [...fl.children], last = kids.filter((k) => !k.hidden).pop(), free = last ? R(fl).bottom - R(last).bottom : 0, firstHidden = kids.find((k) => k.hidden);
     if (firstHidden && free > 110) out.wasted.push('feed: ' + Math.round(free) + 'px free while rows are hidden'); }
+  const tl = document.getElementById('timeline');
+  if (vis(document.querySelector('[data-panel=detail]')) && !document.querySelector('.detail.compact') && tl.children.length && ![...tl.children].some(vis))
+    out.wasted.push('detail: the timeline has ' + tl.children.length + ' lines and shows none');
   return out;
 }"""
 

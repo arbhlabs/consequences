@@ -26,7 +26,7 @@ import hashlib
 import threading
 import datetime
 
-VERSION = "1.6.0"
+VERSION = "1.6.1"
 APP_DIR = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__))
 RES_DIR = getattr(sys, "_MEIPASS", APP_DIR)          # bundled resources (ui/, icon) in the packaged app
 _APPDATA = os.environ.get("APPDATA") or os.path.join(os.path.expanduser("~"), ".config")
