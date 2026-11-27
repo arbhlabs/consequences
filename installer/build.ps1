@@ -14,7 +14,8 @@ Write-Host '[1/4] Building the Consequences Brain app (PyInstaller)...'
 & $Python -m PyInstaller --noconfirm --windowed --name ConsequencesBrain `
     --icon (Join-Path $app 'consequences.ico') `
     --add-data ((Join-Path $app 'ui') + ';ui') --add-data ((Join-Path $app 'consequences.ico') + ';.') `
-    --hidden-import cb_sessions --hidden-import cb_activity --hidden-import cb_sample --collect-submodules webview `
+    --hidden-import cb_sessions --hidden-import cb_activity --hidden-import cb_sample --hidden-import cb_gate `
+    --hidden-import cb_referee --hidden-import cb_refwork --hidden-import cb_learn --hidden-import cb_evidence --collect-submodules webview `
     --distpath (Join-Path $work 'dist') --workpath (Join-Path $work 'pyi') --specpath $work `
     (Join-Path $app 'consequences_brain.py')
 if ($LASTEXITCODE) { throw 'PyInstaller failed' }
@@ -29,12 +30,16 @@ if (-not ($r.ok -and $r.ui -and $r.three -and $r.icon)) { throw "Self-test faile
 
 Write-Host '[3/4] Packing skills + app...'
 $pay = Join-Path $work 'payload'
-New-Item -ItemType Directory -Force -Path "$pay\skill\ship-gate\templates", "$pay\skill\consequences-points", "$pay\brain" | Out-Null
+New-Item -ItemType Directory -Force -Path "$pay\skill\ship-gate\templates", "$pay\skill\consequences-points", "$pay\brain", "$pay\templates\obsidian" | Out-Null
+Copy-Item (Join-Path $repo 'templates\obsidian\Scoreboard.md') "$pay\templates\obsidian\"
 Copy-Item (Join-Path $repo 'skills\ship-gate\SKILL.md') "$pay\skill\ship-gate\"
 Copy-Item (Join-Path $repo 'templates\gate.sh'), (Join-Path $repo 'templates\CHECKLIST.md') "$pay\skill\ship-gate\templates\"
 Copy-Item (Join-Path $repo 'addons\points\*') "$pay\skill\consequences-points\" -Recurse
 Copy-Item (Join-Path $work 'dist\ConsequencesBrain') "$pay\brain\" -Recurse
 Copy-Item (Join-Path $PSScriptRoot 'uninstall.ps1') "$pay\brain\"
+# hook scripts (run with Python 3 from Claude Code hooks; see the README)
+New-Item -ItemType Directory -Force -Path "$pay\brain\ConsequencesBrain\hooks" | Out-Null
+Copy-Item (Join-Path $app 'cb_chatpoints.py'), (Join-Path $app 'cb_activity.py') "$pay\brain\ConsequencesBrain\hooks\"
 $sfx = Join-Path $work 'sfx'
 New-Item -ItemType Directory -Force -Path $sfx | Out-Null
 Compress-Archive -Path "$pay\*" -DestinationPath (Join-Path $sfx 'payload.zip') -Force

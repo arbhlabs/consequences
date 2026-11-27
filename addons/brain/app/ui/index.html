@@ -124,6 +124,14 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--holo);outline-o
 .ask-card .who,.gate-card .who{color:var(--pos);font-weight:700}
 .ask-card .via,.gate-card .via{color:var(--ink-3);font:10.5px var(--mono)}
 .ask-card .what,.gate-card .what{display:block;margin-top:3px;color:var(--ink)}
+.ref-strip{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;flex:0 0 auto;min-width:0;margin:0 7px 6px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;color:var(--ink-2);font:10.5px/1.35 var(--mono)}
+.ref-strip b{color:var(--ink);letter-spacing:.08em}
+.ref-strip span{min-width:0;overflow-wrap:anywhere}
+.ref-strip .ref-tag{color:var(--ink-3,var(--ink-2));opacity:.8}
+.ref-strip .ref-warn{color:#ff8a7a;flex-basis:100%}
+.ref-strip button{font:inherit;padding:0 6px;border:1px solid var(--line);border-radius:6px;background:none;color:inherit;cursor:pointer}
+.ask-card .ref{display:block;margin-top:4px;color:var(--ink);font-size:11.5px;overflow-wrap:anywhere}
+.ask-card .ref .own{color:var(--ink-2);font-size:10.5px}
 .ask-card.quiet{border-color:var(--line);background:rgba(95,227,255,.04)}
 .ask-card.quiet .who{color:var(--ink)}
 .ask-more{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;padding:6px 8px;margin:2px 0 6px;border:1px dashed var(--line);border-radius:10px;
@@ -153,6 +161,13 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--holo);outline-o
 .onboard button:hover{background:rgba(95,227,255,.18)}
 .onboard button.copy{height:20px;padding:0 8px;margin-top:4px;font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
 .onboard .meta{flex:1 1 180px}
+.ref-live{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);width:min(540px,calc(100% - 16px));box-sizing:border-box;height:56px;overflow:hidden;
+  padding:4px 10px;border-radius:10px;background:linear-gradient(180deg,rgba(12,22,36,0),rgba(12,22,36,.72) 35%);color:#fff;font:11px/16px var(--mono);text-align:center;overflow-wrap:anywhere}
+.ref-live[hidden]{display:none}
+.ref-live b{display:block;color:#ffd88a;letter-spacing:.08em;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ref-live .now{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.ref-live.tiny{bottom:0}
+.ref-live.tiny ~ .hint{visibility:hidden}
 .sample-tag{position:absolute;left:50%;top:4px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;height:26px;padding:0 6px 0 12px;border-radius:13px;white-space:nowrap;
   pointer-events:auto;background:rgba(60,44,8,.7);border:1px solid rgba(255,193,77,.5);color:#ffe4ad;font:600 10.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase}
 .sample-tag button{height:18px;padding:0 8px;border-radius:9px;border:1px solid rgba(255,193,77,.5);background:transparent;color:#ffe4ad;font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase}
@@ -357,6 +372,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--holo);outline-o
   <main class="workspace">
     <section class="panel leaderboard" data-panel="leaderboard" aria-label="Leaderboard">
       <div class="panel-head"><h2>Leaderboard</h2><span id="leaderboard-meta">&mdash;</span><div class="tabs" id="lb-sort"><button type="button" data-sort="points" class="on" title="Order by net points">Points</button><button type="button" data-sort="xp" title="Order by proven experience: points gained times the share of jobs that went well">Proven</button></div></div>
+      <div class="ref-strip" id="ref-strip" title="The referee is rules only, no AI: plain arithmetic over the ledger, the gate and each session's own transcript. It is not a runner: no score, no rank. It pays by itself only after its backtest clears a fixed bar."><b>REFEREE</b><span class="ref-tag">rules only, no AI</span><span id="ref-meta">No data yet</span></div>
       <div class="rows" id="leaderboard-rows"><div class="meta" style="padding:10px 6px">No data yet</div></div>
       <div class="panel-foot"><span id="pool-note"></span><span class="legend"><b class="t-green">Green</b> top 3 · <b class="t-yellow">Yellow</b> +20 or more · <b class="t-orange">Orange</b> 0 to +19 · <b class="t-red">Red</b> below 0, even in the top 3.</span> Size = score. Moving light = working or just scored.</div>
     </section>
@@ -377,6 +393,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--holo);outline-o
         </ol>
         <div class="acts"><button type="button" id="ob-sample">Show sample data</button><span class="meta">Your ledger: <span id="ob-ledger"></span></span></div>
       </div>
+      <div class="ref-live" id="ref-live" aria-label="What the referee is judging right now" hidden></div>
       <div class="hint" id="graph-hint">Drag orbit · scroll zoom · click a node · Esc overview</div>
     </section>
 
@@ -447,7 +464,7 @@ function sentence(n){
 function normalize(src){
   var d=(src&&src.graph)?src.graph:(src||{});
   return {nodes:d.nodes||[],totals:d.totals||{},updated:d.updated||0,version:d.version==null?-1:d.version,
-          splits:d.splits||[],eventTotal:d.event_total||0,agentCounts:d.agent_counts||{},pools:d.pools||{},net:d.net,brand:d.brand||'',ledger:d.ledger_name||'',activity:d.activity||[],asks:d.asks||[],now:d.now||0,framework:d.framework||{ranks:[],rules:[]},
+          splits:d.splits||[],eventTotal:d.event_total||0,agentCounts:d.agent_counts||{},pools:d.pools||{},net:d.net,brand:d.brand||'',ledger:d.ledger_name||'',activity:d.activity||[],asks:d.asks||[],referee:d.referee||{},now:d.now||0,framework:d.framework||{ranks:[],rules:[]},
           sample:!!d.sample,setup:d.setup||{},appVersion:d.app_version||'',experience:d.experience||{},gate:d.gate||null};
 }
 
@@ -503,27 +520,106 @@ function index(data){
   setActivity(data.activity,data.now);
   fw=data.framework||{ranks:[],rules:[]};
   asks=(data.asks||[]).filter(function(k){return !resolved[k.dir+'/'+k.file];});
+  refInfo=data.referee||{};
+  renderReferee();
+  refReset();
   gate=data.gate;
   if(state.selected&&!by[state.selected])state.selected=null;
 }
 /* ---------------------------------------------------------------- live activity (push beacons, cb_activity.py) */
-var work={},workTimer=0,asks=[],resolved={},fw={ranks:[],rules:[]},tab='moves';
+var work={},workTimer=0,asks=[],refInfo={},resolved={},fw={ranks:[],rules:[]},tab='moves';
 var ASK_CAP=4,showAllAsks=false,showQuiet=false,gate=null,showGate=false,gateArm='';   // the waiting list never grows without limit
-function loudAsks(){return asks.filter(function(k){return !k.quiet;});}
-function quietAsks(){return asks.filter(function(k){return k.quiet;});}
+function isQuiet(k){return !!k.quiet&&!(k.referee&&Number(k.referee.points));}   // a quiet ask the referee puts a number on is shown with the loud ones
+function loudAsks(){return asks.filter(function(k){return !isQuiet(k);});}
+function quietAsks(){return asks.filter(isQuiet);}
+/* the referee at the centre orb: walks through its real checks on each open ask, one line at a time, stepped by the 3D frame (no timers) */
+var REF_STEP=1100,REF_HOLD=3,refCur={i:0,step:0,at:0,key:'',newest:0,lines:[]};
+var REF_WORDS={evidence:'judged like your past awards',unclear:'mixed evidence, your call',ambiguous:'two sessions overlapped, your call',already_paid:'already paid',own_miss:'making up its own miss',overclaim:'overclaim',gate_proven:'proven by the gate',unproven:'not proven yet',self_penalty:'reports its own miss',no_evidence:'no evidence'};
+function refList(){var l=asks.filter(function(k){return k.referee;});l=l.filter(function(k){return !isQuiet(k);}).concat(l.filter(isQuiet));
+  return refInfo.ready?l.concat([{summary:true,dir:'',file:'@referee',ts:0}]):l;}
+function pct(x){return Math.round((Number(x)||0)*100)+'%';}
+function refSummary(){   // the referee's own state, in plain words: what it learned, what it heard, who should work next
+  var R=refInfo,m=R.metrics||{},d=R.delegation||[],out=['What the referee learned: '+(R.last||((R.notes||[]).slice(-1)[0])||'still collecting cases')];
+  out.push('Backtest: '+(m.n?pct(m.sign_acc)+' right on the '+m.n+' newest of '+R.cases+' cases (guessing: '+pct(m.majority_baseline)+'), '+(m.false_deductions||0)+' false deductions':'not enough cases yet'));
+  out.push(R.autonomy?'Pays by itself: yes, within +/-5 a row and +/-10 a day, marked [referee], one-click undo':'Pays by itself: not yet. Needs 80% right when sure and no false deductions; you click');
+  var h=(R.heard||[]).length,nu=(R.needs_you||[]).length;
+  out.push('Heard you: '+(h?h+' award'+(h>1?'s':'')+' logged for you this pass':'every award you said is in the ledger')+(nu?', '+nu+' unclear one'+(nu>1?'s':'')+' wait for you':''));
+  if(d.length)out.push('Next job: '+d[0].runner+' ('+d[0].plus+' of '+d[0].n+' recent awards were plus)'+(d[1]?', then '+d[1].runner:'')+'. Effort is not recorded yet.');
+  return out;}
+function refLines(k){
+  if(k.summary)return refSummary();
+  var r=k.referee,c=r.checks||{},g=c.gate||{},p=Math.round(Number(r.points)||0),who=k.agent||k.raw;
+  var runs=Object.keys(g).map(function(s){return g[s]+' '+s.replace(/_/g,' ');}).join(', ');
+  var e=c.evidence,L=c.learned,ec=(e&&e.counts)||{};
+  var ev=e?['4. Its own transcript: '+ec.tests_pass+' test run'+(ec.tests_pass===1?'':'s')+' passed, '+ec.tests_fail+' failed, '+ec.commits+' commit'+(ec.commits===1?'':'s')+', '+ec.screen_checks+' screen check'+(ec.screen_checks===1?'':'s')+(e.handed_to_owner?', handed you steps':'')]:[];
+  if(L)ev.push('5. Like your past awards: '+pct(L.p_plus)+' likely a plus'+((L.drivers||[]).length?' ('+L.drivers.slice(0,2).map(function(x){return x[0];}).join(', ')+')':'')+(L.confident?'':', not sure enough'));
+  return ['Judging '+who+'\'s ask'+(c.asked!=null?' for '+fmt(c.asked):', no amount asked'),
+    '1. Paid already? '+(c.ledger_plus||g.awarded?'yes':'no ledger row, no gate award'),
+    '2. Penalty during this work? '+(c.ledger_minus?'yes ('+c.ledger_minus+')':'none'),
+    '3. Gate checks: '+(runs||'no run for this work')].concat(ev,[
+    'Verdict: '+(p?fmt(p):'0')+', '+(REF_WORDS[r.verdict]||String(r.verdict).replace(/_/g,' '))+'. '+r.why,
+    p?'Handed to '+who+': waits on its card for your click':'Handed to '+who+': no points, nothing to click']);
+}
+function refDraw(){
+  var el=document.getElementById('ref-live'),l=refList(),ob=document.getElementById('onboard');
+  if((ob&&!ob.hidden)||el.parentNode.clientHeight<190){el.hidden=true;refAim(null);return;}   // no room: the leaderboard strip still reports
+  var head='REFEREE',rows=[],k=l[refCur.i];
+  if(!k){rows=['No open asks. Watching the ledger and the gate.'];refAim(null);}
+  else{var all=refLines(k);rows=all.slice(0,Math.min(all.length,refCur.step+1));head+=' · '+(refCur.i+1)+' of '+l.length+' · '+(k.summary?'its own state':'judging '+(k.agent||k.raw));refAim(k.summary?null:'a:'+(k.agent||'UNATTRIBUTED'));}
+  refCur.lines=rows;
+  var html='<b>'+esc(head)+'</b><div class="now">'+esc(rows[rows.length-1])+'</div>';   // one line of thought at a time
+  el.hidden=false;el.classList.toggle('tiny',el.parentNode.clientHeight<300);
+  if(el._html!==html){el.innerHTML=html;el._html=html;}
+}
+function refAim(id){if(window.CBScene&&window.CBScene.referee)window.CBScene.referee(id);}
+function refReset(){   // new data: a newer ask is judged at once, otherwise the walk-through keeps its place
+  var l=refList(),newest=l.reduce(function(m,k){return Math.max(m,Number(k.ts)||0);},0),i=-1;
+  l.forEach(function(k,n){if(k.dir+'/'+k.file===refCur.key)i=n;});
+  if(newest>refCur.newest){l.forEach(function(k,n){if((Number(k.ts)||0)===newest)i=n;});refCur.step=0;refCur.at=0;}
+  if(i<0){i=0;refCur.step=0;}
+  refCur.newest=newest;refCur.i=i;refCur.key=l[i]?l[i].dir+'/'+l[i].file:'';refDraw();
+}
+function refTick(ms){
+  if(!refCur.at){refCur.at=ms;return;}
+  if(ms-refCur.at<REF_STEP)return;
+  refCur.at=ms;var l=refList();if(!l.length){refDraw();return;}
+  refCur.step++;
+  if(!l[refCur.i]||refCur.step>=refLines(l[refCur.i]).length+REF_HOLD){refCur.step=0;refCur.i=(refCur.i+1)%l.length;}
+  refCur.key=l[refCur.i].dir+'/'+l[refCur.i].file;refDraw();
+}
+function renderReferee(){   // pinned strip above the leaderboard: not a runner, no score, no rank
+  var j=asks.filter(function(k){return k.referee;}),at=j.reduce(function(m,k){return Math.max(m,Number((k.referee.checks||{}).at)||0);},0),d=new Date(at*1000);
+  var meta=document.getElementById('ref-meta'),R=refInfo,it=R.integrity||{},ck=R.clock||{};
+  meta.textContent=j.length?j.length+' open '+(j.length===1?'ask':'asks')+' judged'+(at?' · '+pad(d.getHours())+':'+pad(d.getMinutes()):''):'No data yet';
+  var w=document.getElementById('ref-warn'),msg=(it.ok===false?it.text:'')+(R.status==='tampered'?' Its learned profile was edited outside the learner; neutral rules are in use.':'')+(ck.behind?' '+ck.text:'');
+  if(!w){w=document.createElement('span');w.id='ref-warn';w.className='ref-warn';meta.parentNode.appendChild(w);}
+  w.hidden=!msg;w.innerHTML=msg?esc(msg)+(it.ok===false?' <button type="button" id="ref-seal">Accept change</button>':''):'';
+  // automatic [referee] rows of the last day, each with a one-click undo (an equal and opposite row)
+  var autos=Object.keys(by).map(function(i){return by[i];}).filter(function(n){var t=String(n.title||'');return /\[referee\]/.test(t)&&!/revert/.test(t)&&(Date.now()-Date.parse(String(n.ts).replace(' ','T')))<864e5;});
+  var reverted=Object.keys(by).map(function(i){return String(by[i].title||'');}).filter(function(t){return /\[referee revert\]/.test(t);}).join(' ');
+  autos=autos.filter(function(n){return reverted.indexOf(n.id)<0;});
+  if(autos.length){w.hidden=false;w.innerHTML+=(w.innerHTML?' ':'')+autos.slice(0,3).map(function(n){return esc((n.agent||'')+' '+n.label+' by the referee')+' <button type="button" class="ref-undo" data-id="'+esc(n.id)+'">Undo</button>';}).join(' ');}
+  Array.prototype.forEach.call(document.querySelectorAll('.ref-undo'),function(b){b.onclick=function(){if(window.pywebview&&pywebview.api.referee_revert)pywebview.api.referee_revert(b.getAttribute('data-id'));b.disabled=true;};});
+  var sb=document.getElementById('ref-seal');if(sb)sb.onclick=function(){if(window.pywebview&&pywebview.api.referee_accept_seal)pywebview.api.referee_accept_seal().then(function(){w.hidden=true;});};
+}
 /* pulse of the small "working" dots, stepped from the 3D frame at ~15 Hz (see the .beat rule) */
 var beatEls=document.getElementsByClassName('beat'),beatLast=0;
 window.__cbBeat=function(ms){
+  refTick(ms);
   if(ms-beatLast<66)return;beatLast=ms;
   var s=0.5-0.5*Math.cos((ms%1600)/1600*6.2832),tf='scale('+(1+0.7*s).toFixed(2)+')',op=(1-0.65*s).toFixed(2);
   for(var i=0;i<beatEls.length;i++){beatEls[i].style.transform=tf;beatEls[i].style.opacity=op;}
 };
+function modelsOf(w){   // "Claude Code (Sonnet 5.5)" -> "Sonnet 5.5": the model each live session really runs
+  return Object.keys(w.raws||{}).map(function(r){var m=/\(([^),]+)/.exec(r);return m&&!/^OpenCode$/i.test(m[1].trim())?m[1].trim():(/\(OpenCode/.test(r)?r.split(' (')[0]:'');})
+    .filter(function(v,i,a){return v&&a.indexOf(v)===i;}).join(', ');
+}
 function setActivity(list,serverNow){
   // beacon expiry is relative to the server clock; one one-shot timer for the earliest expiry, no polling
   var skew=serverNow?Date.now()-serverNow*1000:0;work={};
   (list||[]).forEach(function(b){if(!b.active)return;var until=b.expires*1000+skew;var w=work[b.agent];
     if(!w)w=work[b.agent]={task:'',raw:b.raw||b.agent,until:0,n:0,at:0};
-    w.n++;if(until>w.until)w.until=until;if((b.ts||0)>=w.at&&b.task){w.task=b.task;w.at=b.ts||0;}});
+    (w.raws=w.raws||{})[b.raw||b.agent]=1;w.n++;if(until>w.until)w.until=until;if((b.ts||0)>=w.at&&b.task){w.task=b.task;w.at=b.ts||0;}});
   armWorkTimer();
 }
 function armWorkTimer(){
@@ -744,7 +840,7 @@ function renderLeaderboard(changed,first){
     var wk=work[a.label];
     return (i===live.length?staleLine:'')+'<button class="row '+(state.selected===a.id?'selected':'')+(wk?' working':'')+'" data-leader="'+esc(a.id)+'" data-val="'+v+'" data-tier="'+tm[a.id]+'"'+(a.stale?' data-stale="1"':'')+' aria-label="Select '+esc(a.label)+'">'+
       '<span class="rank">'+(a.stale?'··':String(i+1).padStart(2,'0'))+'</span>'+
-      '<span class="who"><i class="sw '+cls+'"></i><span class="nm"><span class="name">'+esc(a.label)+'</span><span class="standing">'+esc(g?(byXp?fmt(v)+' pts':'XP '+g.xp)+' · '+expLine(g):(a.standing||'Scored runner')+' · '+agentCount(a.label)+' jobs')+'</span>'+(wk?'<span class="work"><i class="beat"></i>working'+(wk.n>1?' ×'+wk.n:'')+(wk.task?'<span class="task"> · '+esc(wk.task)+'</span>':'')+'</span>':'')+'</span></span>'+
+      '<span class="who"><i class="sw '+cls+'"></i><span class="nm"><span class="name">'+esc(a.label)+'</span><span class="standing">'+esc(g?(byXp?fmt(v)+' pts':'XP '+g.xp)+' · '+expLine(g):(a.standing||'Scored runner')+' · '+agentCount(a.label)+' jobs')+'</span>'+(wk?'<span class="work"><i class="beat"></i>working'+(wk.n>1?' ×'+wk.n:'')+' · <b class="model">'+esc(modelsOf(wk)||'model not reported yet')+'</b>'+(wk.task?'<span class="task"> · '+esc(wk.task)+'</span>':'')+'</span>':'')+'</span></span>'+
       (byXp?'<span class="score '+cls+'" title="Proven XP">'+xpv(a)+' XP</span>':'<span class="score '+cls+'">'+deltaChip(a)+'<span data-score-for="'+esc(a.id)+'">'+fmt(s.x)+'</span></span>')+
       spark(a,v,tm[a.id])+'<span class="bar '+cls+'"><i style="width:'+w+'%"></i></span></button>';
   }).join('')+(order.length===live.length?staleLine:'')+'<div class="more" hidden></div>';
@@ -860,7 +956,7 @@ function renderRunner(n){   // one runner in plain words: now, standing, recent 
   $('detail-meta').textContent='Rank '+rank+' of '+agents.length+' · '+count+' scored event'+(count===1?'':'s')+'. '+trend;
   $('detail-source').textContent=extra.ledger||'the ledger';
   var w=work[n.label],doing=w?words(w.task,140):'';
-  var wait=asks.filter(function(k){return k.agent===n.label&&!k.quiet;});
+  var wait=asks.filter(function(k){return k.agent===n.label&&!isQuiet(k);});
   var h=function(t){return '<div class="rv-h">'+t+'</div>';},p=function(t){return '<div class="rv-t">'+esc(t)+'</div>';};
   var html=h('Right now')+p(w?'Working'+(doing?' on '+doing:'')+(w.n>1?' ('+w.n+' sessions)':'')+'.':'Idle.');
   html+=h('Waiting for points')+(wait.length?wait.slice(0,3).map(function(k){
@@ -930,16 +1026,19 @@ function askCard(k){
     }
     var sug=(k.suggested===null||k.suggested===undefined)?null:Number(k.suggested);
     var head=k.by?('<span class="sug">'+esc(k.note)+' '+fmt(sug)+' for '+esc(k.agent||k.raw)+(k.why?': '+esc(k.why):'')+'</span>')
-      :(sug!==null?'<span class="sug">Suggests '+fmt(sug)+(k.why?': '+esc(k.why):'')+'</span>':'');
+      :(sug!==null&&!k.referee?'<span class="sug">Suggests '+fmt(sug)+(k.why?': '+esc(k.why):'')+'</span>':'');
+    var own=(k.referee&&!k.by&&sug!==null)?' <span class="own">Suggests '+fmt(sug)+(k.why?': '+esc(k.why):'')+'</span>':'';   // the agent's own number, secondary, on the referee's line so the card is no taller than before
+    var ref=k.referee||null,rp=ref?Math.round(Number(ref.points)||0):0,acc=ref?(rp!==0?rp:null):sug;   // the referee's amount is the one-click Accept; 0 = no Accept, only the reason
+    var refLine=ref?'<span class="ref">Referee: '+(rp!==0?fmt(rp)+' · ':'')+esc(String(ref.verdict||'').replace(/_/g,' '))+'. '+esc(ref.why)+own+'</span>':'';
     var where=k.project?' in '+esc(k.project):'',what=(!k.why&&k.task)?k.task:'';   // the agent's own reason is the headline; a prompt only fills in when there is none
     var note=(!k.by&&k.note)||(k.by&&sug===null)?'<span class="note">'+esc(k.note)+'</span>':'';
-    var acts=(sug!==null?'<button type="button" class="accept" data-award="'+sug+'" title="Accept the suggested amount">Accept '+fmt(sug)+'</button>':'')+
-      [1,5,10,20].filter(function(v){return v!==sug;}).map(function(v){return '<button type="button" class="p" data-award="'+v+'">+'+v+'</button>';}).join('');
+    var acts=(acc!==null?'<button type="button" class="accept" data-award="'+acc+'" title="'+(ref?'Accept the referee amount':'Accept the suggested amount')+'">Accept '+fmt(acc)+'</button>':'')+
+      [1,5,10,20].filter(function(v){return v!==acc;}).map(function(v){return '<button type="button" class="p" data-award="'+v+'">+'+v+'</button>';}).join('');
     return '<div class="ask-card'+(k.quiet?' quiet':'')+'" data-ask="'+key+'">'+whoHtml(k)+' finished'+where+
-      (k.turns>1?' · '+k.turns+' turns':'')+' <span class="when">· '+ago(k.ts)+'</span>'+head+
+      (k.turns>1?' · '+k.turns+' turns':'')+' <span class="when">· '+ago(k.ts)+'</span>'+refLine+head+
       (what?'<span class="'+(sug===null?'what':'note')+'">'+esc(what)+'</span>':'')+note+
       '<div class="acts">'+acts+
-      (sug!==-5?'<button type="button" class="n" data-award="-5">-5</button>':'')+'<button type="button" class="x" data-dismiss="1" title="No points for this">Dismiss</button></div></div>';
+      (acc!==-5?'<button type="button" class="n" data-award="-5">-5</button>':'')+'<button type="button" class="x" data-dismiss="1" title="No points for this">Dismiss</button></div></div>';
 }
 function renderFeed(fresh){
   var list=nodes.filter(function(n){return n.type==='point'||n.type==='strike';})
@@ -1116,7 +1215,7 @@ window.__demoSelect=select;window.__test=window.__cbTest;
 if(api()&&api().data)load();else window.addEventListener('pywebviewready',load);
 })();
 </script>
-<script type="module" src="scene.js"></script>
+<script type="module" src="scene.js?v=refit-1"></script>
 <script>
 /* self-heal: if the 3D module did not load (a refused request, a driver hiccup), retry twice, then say so plainly */
 (function(){var tries=0;function check(){if(window.CBScene)return;tries++;

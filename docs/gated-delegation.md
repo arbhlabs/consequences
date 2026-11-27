@@ -13,7 +13,7 @@ All under `%LOCALAPPDATA%\Consequences\gate\` (outside every repo an agent works
 | `evidence/<id>.json` | gate engine | per check: command, exit code, duration, output tail hash, artifact hash, commit |
 | `gate.jsonl` | gate engine | every decision: would-award / awarded / blocked / pending / clawed back, with plain-words reason |
 
-**Fail closed:** if the files don't match the seal, the gate stops awarding and the window shows "Checks changed outside the window". Honest limit: on one Windows account this is **tamper-evident, not tamper-proof**. A same-user process can still edit files. If that is ever needed, the engine moves to a separate local account or the mini PC (not built in v1). Any agent on the account can also import the owner functions. The window therefore lists every owner action (approve, mode, approve/decline, revert) with its time, so an action Aaron did not take is visible.
+**Fail closed:** if the files don't match the seal, the gate stops awarding and the window shows "Checks changed outside the window". Honest limit: on one Windows account this is **tamper-evident, not tamper-proof**. A same-user process can still edit files. If that is ever needed, the engine moves to a separate local account or another machine (not built in v1). Any agent on the account can also import the owner functions. The window therefore lists every owner action (approve, mode, approve/decline, revert) with its time, so an action the owner did not take is visible.
 
 ## Flow
 1. The agent finishes and runs `cb_gate.py claim --job <type> --commit <sha> [--for <peer>]`. It can't pass checks, exit codes, scores or usage. Only the job type and the commit.

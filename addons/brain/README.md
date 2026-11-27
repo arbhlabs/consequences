@@ -35,7 +35,7 @@ python addons/brain/app/consequences_brain.py
 Check what you have:
 
 ```
-python addons/brain/app/consequences_brain.py --version     # prints 1.7.0
+python addons/brain/app/consequences_brain.py --version     # prints 1.8.0
 python addons/brain/app/consequences_brain.py --selftest    # loads your ledger, prints a summary, never opens a window
 ```
 
@@ -168,6 +168,20 @@ All settings live in `%APPDATA%\Consequences\config.json`, or in `config.json` n
 Agents can earn points without waiting for you, but only when your own checks pass. Define job types in `%LOCALAPPDATA%\Consequences\gate\checks.json`: a repo, check commands, pinned test paths and base points. Then click **Feed > Gate > Show > Approve checks** in the window.
 
 An agent claims with `cb_gate.py claim --job <type> --commit <sha>`, and the optional Stop hook `cb_gate.py hook` does it automatically. The gate runs the checks on a clean checkout and stores the evidence. It starts in dry-run, so nothing is written until you click **Go live**. Caps, rank rules, revert and clawback are described in `docs/gated-delegation.md`.
+
+## Points typed in chat (optional hook)
+
+`app/cb_chatpoints.py` is a Claude Code `UserPromptSubmit` hook. When your prompt gives or takes points ("minus 20 points", "plus 3", "+5 pts", or a bare "+3" in a short reaction), it appends the row to your ledger at once for the model of that session, and tells the agent not to log it again. Promises ("I will award you 200 points") and ranges ("5-10") are ignored. Each prompt is logged once.
+
+## The referee (rules only, no AI)
+
+`cb_referee.py`, `cb_refwork.py`, `cb_learn.py` and `cb_evidence.py` judge open points asks. A worker process runs every two minutes at idle priority, with no window. It indexes local Claude Code transcripts (`~/.claude/projects`, or `CB_TRANSCRIPTS`) for evidence: tests run and passed, commits, screen checks, device checks, steps handed back to the owner, and the owner's tone. Each card shows the verdict and the evidence behind it.
+
+- It **hears** points you typed in chat and logs them 10 minutes later if nobody else did (`[heard]`), once.
+- It **learns** from your later awards and adopts a new version only if a held-out replay is better with no more false deductions.
+- It **pays by itself** only after its backtest clears a fixed bar (15+ held-out cases, 80 % right on confident calls, zero false deductions). Automatic rows are marked `[referee]`, capped at ±5 a row and ±10 a day per runner, and undone in one click.
+- Runners listed in config `"referee": {"never_auto": ["..."]}` are never scored automatically. A change to the referee's code, caps or that list shows in the window until you accept it.
+- `"referee": {"hear": false}` turns hearing off. State lives in `%LOCALAPPDATA%\Consequences\referee\`.
 
 ## Tests
 

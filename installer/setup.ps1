@@ -2,25 +2,45 @@
 #   Consequences skill   -> ~/.claude/skills/ship-gate            (the ship gate for AI agents)
 #   Points add-on        -> ~/.claude/skills/consequences-points  (score agent work with + and - points)
 #   Consequences Brain   -> %LOCALAPPDATA%\Programs\Consequences Brain  (optional live 3D window, no Python needed)
-# Unattended:  powershell -File setup.ps1 -Silent [-NoBrain] [-NoPoints] [-NoSkill] [-NoShortcut] [-Root <test folder>]
+#   Obsidian (optional)  -> keep the ledger as <vault>\Consequences\Scoreboard.md instead of the add-on's ledger.jsonl
+# Unattended:  powershell -File setup.ps1 -Silent [-NoBrain] [-NoPoints] [-NoSkill] [-NoShortcut] [-ObsidianVault <folder>] [-Root <test folder>]
 param(
     [switch]$Silent, [switch]$NoSkill, [switch]$NoPoints, [switch]$NoBrain, [switch]$NoShortcut,
-    [string]$Root = '', [string]$Payload = $PSScriptRoot
+    [string]$ObsidianVault = '', [string]$Root = '', [string]$Payload = $PSScriptRoot
 )
 $ErrorActionPreference = 'Stop'
-$Version = '1.7.0'
+$Version = '1.8.0'
 
 # Where things go. -Root redirects everything (used by the automated test; nothing touches the real profile then).
 if ($Root) {
     $UserHome = Join-Path $Root 'home'; $LocalApp = Join-Path $Root 'local'; $Desktop = Join-Path $Root 'desktop'
-    $StartMenu = Join-Path $Root 'startmenu'
+    $StartMenu = Join-Path $Root 'startmenu'; $RoamingApp = Join-Path $Root 'roaming'
 } else {
-    $UserHome = $HOME; $LocalApp = $env:LOCALAPPDATA
+    $UserHome = $HOME; $LocalApp = $env:LOCALAPPDATA; $RoamingApp = $env:APPDATA
     $Desktop = [Environment]::GetFolderPath('Desktop'); $StartMenu = [Environment]::GetFolderPath('Programs')
 }
 $SkillsDir = Join-Path $UserHome '.claude\skills'
 $AppDir = Join-Path $LocalApp 'Programs\Consequences Brain'
 $Exe = Join-Path $AppDir 'ConsequencesBrain.exe'
+$ConfigPath = Join-Path $RoamingApp 'Consequences\config.json'
+
+function Set-ObsidianLedger([string]$Vault, [string]$Template) {
+    # Opt-in: the window and the chat-points hook read and append to <vault>\Consequences\Scoreboard.md.
+    # An existing Scoreboard.md is never overwritten (append-only); other config keys are kept.
+    if (-not (Test-Path -LiteralPath $Vault -PathType Container)) { throw "Vault folder not found: $Vault" }
+    $dir = Join-Path $Vault 'Consequences'
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    $ledger = Join-Path $dir 'Scoreboard.md'
+    if (-not (Test-Path -LiteralPath $ledger)) { Copy-Item -LiteralPath $Template -Destination $ledger }
+    $cfg = [ordered]@{}
+    if (Test-Path -LiteralPath $ConfigPath) {
+        try { (Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $cfg[$_.Name] = $_.Value } } catch { }
+    }
+    $cfg['ledger'] = $ledger; $cfg['notes'] = $dir
+    New-Item -ItemType Directory -Force -Path (Split-Path $ConfigPath) | Out-Null
+    $cfg | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ConfigPath -Encoding UTF8
+    return $ledger
+}
 
 function Expand-Payload {
     $zip = Join-Path $Payload 'payload.zip'
@@ -37,7 +57,7 @@ function New-Shortcut([string]$Path, [string]$Target, [string]$WorkDir, [string]
     $s.Save()
 }
 
-function Install-Consequences([bool]$Skill, [bool]$Points, [bool]$Brain, [bool]$Shortcut, [scriptblock]$Progress) {
+function Install-Consequences([bool]$Skill, [bool]$Points, [bool]$Brain, [bool]$Shortcut, [scriptblock]$Progress, [string]$Vault = '') {
     $src = Expand-Payload
     $done = @()
     try {
@@ -69,7 +89,7 @@ function Install-Consequences([bool]$Skill, [bool]$Points, [bool]$Brain, [bool]$
                 New-Item -Path $k -Force | Out-Null
                 Set-ItemProperty $k DisplayName 'Consequences Brain'
                 Set-ItemProperty $k DisplayVersion $Version
-                Set-ItemProperty $k Publisher 'ARBH Labs'
+                Set-ItemProperty $k Publisher 'Consequences'
                 Set-ItemProperty $k DisplayIcon $icon
                 Set-ItemProperty $k InstallLocation $AppDir
                 Set-ItemProperty $k UninstallString ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $AppDir 'uninstall.ps1') + '"')
@@ -77,6 +97,10 @@ function Install-Consequences([bool]$Skill, [bool]$Points, [bool]$Brain, [bool]$
                 Set-ItemProperty $k NoRepair 1 -Type DWord
             }
             $done += "brain: $Exe"
+        }
+        if ($Vault) {
+            & $Progress 'Connecting the Obsidian vault...'
+            $done += "obsidian: " + (Set-ObsidianLedger $Vault (Join-Path $src 'templates\obsidian\Scoreboard.md'))
         }
         & $Progress 'Done.'
         return $done
@@ -86,7 +110,7 @@ function Install-Consequences([bool]$Skill, [bool]$Points, [bool]$Brain, [bool]$
 }
 
 if ($Silent) {
-    $r = Install-Consequences (-not $NoSkill) (-not $NoPoints) (-not $NoBrain) (-not $NoShortcut) { param($m) }
+    $r = Install-Consequences (-not $NoSkill) (-not $NoPoints) (-not $NoBrain) (-not $NoShortcut) { param($m) } $ObsidianVault
     $out = if ($Root) { Join-Path $Root 'install-result.json' } else { Join-Path ([IO.Path]::GetTempPath()) 'consequences-install-result.json' }
     @{ ok = $true; version = $Version; installed = $r } | ConvertTo-Json | Set-Content -LiteralPath $out -Encoding UTF8
     exit 0
@@ -98,7 +122,7 @@ Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 $bg = [Drawing.Color]::FromArgb(14, 26, 38); $ink = [Drawing.Color]::FromArgb(216, 246, 255)
 $muted = [Drawing.Color]::FromArgb(143, 179, 196); $holo = [Drawing.Color]::FromArgb(95, 227, 255)
 $f = New-Object Windows.Forms.Form
-$f.Text = "Install Consequences $Version"; $f.ClientSize = '520,400'; $f.StartPosition = 'CenterScreen'
+$f.Text = "Install Consequences $Version"; $f.ClientSize = '520,470'; $f.StartPosition = 'CenterScreen'
 $f.FormBorderStyle = 'FixedDialog'; $f.MaximizeBox = $false; $f.BackColor = $bg; $f.ForeColor = $ink
 $f.Font = New-Object Drawing.Font('Segoe UI', 10)
 $ico = Join-Path $Payload 'consequences.ico'
@@ -124,11 +148,25 @@ foreach ($o in @(
     $y += 58
 }
 $boxes['brain'].Add_CheckedChanged({ $boxes['shortcut'].Enabled = $boxes['brain'].Checked })
+$script:vault = ''
+$obs = New-Object Windows.Forms.CheckBox
+$obs.Text = 'Keep the ledger in an Obsidian vault (optional)'; $obs.Checked = $false; $obs.Location = "30,$y"; $obs.AutoSize = $true
+$obs.ForeColor = $ink; $obs.Font = New-Object Drawing.Font('Segoe UI Semibold', 10.5); $f.Controls.Add($obs)
+$obsNote = New-Object Windows.Forms.Label
+$obsNote.Text = 'Off: points go to a local ledger.jsonl. On: pick a vault; Scoreboard.md is created there.'
+$obsNote.ForeColor = $muted; $obsNote.Location = "52,$($y + 25)"; $obsNote.AutoSize = $true; $f.Controls.Add($obsNote)
+$obs.Add_CheckedChanged({
+    if (-not $obs.Checked) { $script:vault = ''; $obsNote.Text = 'Off: points go to a local ledger.jsonl.'; return }
+    $dlg = New-Object Windows.Forms.FolderBrowserDialog
+    $dlg.Description = 'Pick your Obsidian vault folder'
+    if ($dlg.ShowDialog() -eq 'OK') { $script:vault = $dlg.SelectedPath; $obsNote.Text = "Ledger: $($dlg.SelectedPath)\Consequences\Scoreboard.md" }
+    else { $obs.Checked = $false }
+})
 $status = New-Object Windows.Forms.Label
 $status.Text = 'Nothing is installed until you press Install. No admin rights needed.'; $status.ForeColor = $muted
-$status.Location = '30,350'; $status.Size = '300,40'; $f.Controls.Add($status)
+$status.Location = '30,420'; $status.Size = '300,40'; $f.Controls.Add($status)
 $btn = New-Object Windows.Forms.Button
-$btn.Text = 'Install'; $btn.Location = '390,348'; $btn.Size = '100,34'; $btn.FlatStyle = 'Flat'
+$btn.Text = 'Install'; $btn.Location = '390,418'; $btn.Size = '100,34'; $btn.FlatStyle = 'Flat'
 $btn.BackColor = [Drawing.Color]::FromArgb(20, 60, 80); $btn.ForeColor = $ink; $btn.FlatAppearance.BorderColor = $holo
 $f.AcceptButton = $btn; $f.Controls.Add($btn)
 $btn.Add_Click({
@@ -136,9 +174,10 @@ $btn.Add_Click({
     if ($btn.Text -eq 'Close') { $f.Close(); return }
     $btn.Enabled = $false
     foreach ($b in $boxes.Values) { $b.Enabled = $false }
+    $obs.Enabled = $false
     try {
         $null = Install-Consequences $boxes['skill'].Checked $boxes['points'].Checked $boxes['brain'].Checked ($boxes['brain'].Checked -and $boxes['shortcut'].Checked) {
-            param($m) $status.Text = $m; $status.Refresh() }
+            param($m) $status.Text = $m; $status.Refresh() } $script:vault
         $status.Text = 'All set. Agents now use the skill automatically.'
         $btn.Text = $(if ($boxes['brain'].Checked) { 'Open' } else { 'Close' })
     } catch {

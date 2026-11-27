@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased: gated point delegation
+## 1.8.0
+
+- **Referee (rules only, no AI).** Each points ask gets a verdict built from that session's own transcript: tests run and passed, commits, screen and device checks, steps handed back to the owner, and the owner's tone, compared with past awards. The card lists the evidence. It runs in its own idle process every two minutes and never blocks the window.
+- The referee hears points typed in chat and logs them once if nobody did (`[heard]`). It may pay by itself only after its backtest clears a fixed bar; automatic rows are marked `[referee]`, capped (±5 a row, ±10 a day per runner) and undone in one click. A `never_auto` list and a seal over its code and caps; any change shows in the window until the owner accepts it.
+- New `cb_chatpoints.py` Claude Code hook: "minus 20 points" or "+3" in the owner's prompt is logged the moment it is sent. Promised points and ranges are ignored. Regression test: `addons/brain/tests/test_chatpoints.py`.
+- Parallel sessions of one model no longer close each other's asks: a ledger row tied to a session closes only that session's ask.
+- A Claude Code API error reply no longer shows the session as working.
+- Installer: optional Obsidian vault. Pick a vault and the ledger becomes `<vault>\Consequences\Scoreboard.md` (created from a template, never overwritten, append-only); default stays the local `ledger.jsonl`. Unattended: `-ObsidianVault <folder>`.
+- The points skill (`addons/points/SKILL.md`) is now a generic, hand-maintained version: how to ask for points with a calibrated amount, the self-check before asking, promised points, the pool, promotion ranks, the gate and the referee.
+- New README, screenshots and a 16 s demo clip, all rendered headless from the fictional sample team.
+
+### Also in 1.8.0: gated point delegation (first published here)
 
 - A score change now stays visible for 15 minutes: a "+10 now" / "-5 3m" chip next to the runner's score, read from the ledger's own timestamps, so it survives a restart and changes that cancel show as "±0". Before, it was a 1.4 s row flash that was easy to miss.
 - Stale runners fold into one "N stale · names · Show" line at the bottom of the leaderboard and leave the 3D map. A runner is stale when the owner lists it in config `"stale"` (names, or `{"runners": [...], "why": "..."}`), or when it has had no points for `"stale_after_days"` (default 7). A runner that is working right now is never stale, and stale runners never take the top spot or the green tier.

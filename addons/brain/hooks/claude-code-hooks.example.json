@@ -1,5 +1,5 @@
 {
-  "_comment": "Optional. Claude Code needs no setup because the Brain reads the transcripts it already writes. These hooks only make 'working' and 'done' show up a little faster. Merge the 'hooks' block into ~/.claude/settings.json and replace C:\\path\\to\\consequences with where you cloned the repo.",
+  "_comment": "Optional. Claude Code shows up without setup because the Brain reads the transcripts it already writes. These hooks make 'working' and 'done' show up at once, log points you type in chat (cb_chatpoints.py), and let the gate claim points for a commit made in a turn (cb_gate.py hook; remove it if you do not use the gate). Merge the 'hooks' block into ~/.claude/settings.json and replace C:\\path\\to\\consequences with where you cloned the repo. Each call takes ~150 ms and never blocks or fails a session.",
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -8,6 +8,11 @@
             "type": "command",
             "timeout": 5,
             "command": "python \"C:\\path\\to\\consequences\\addons\\brain\\app\\cb_activity.py\" hook working --agent \"Claude Code\" --ttl 10800"
+          },
+          {
+            "type": "command",
+            "timeout": 5,
+            "command": "python \"C:\\path\\to\\consequences\\addons\\brain\\app\\cb_chatpoints.py\""
           }
         ]
       }
@@ -19,6 +24,11 @@
             "type": "command",
             "timeout": 5,
             "command": "python \"C:\\path\\to\\consequences\\addons\\brain\\app\\cb_activity.py\" hook done --agent \"Claude Code\""
+          },
+          {
+            "type": "command",
+            "timeout": 5,
+            "command": "python \"C:\\path\\to\\consequences\\addons\\brain\\app\\cb_gate.py\" hook"
           }
         ]
       }

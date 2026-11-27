@@ -7,7 +7,7 @@
       <polygon points="58,37.5 79,37.5 120,102.5 99,102.5" fill="#EEF1F4"/>
       <polygon points="42,68.5 65,68.5 42,102.5 20,102.5" fill="#4D8DFF"/>
     </svg>
-    <text x="50" y="24" fill="#EEF1F4" font-family="Instrument Sans, Inter, ui-sans-serif, sans-serif" font-size="14" font-weight="600" letter-spacing="2.8">ARBH LABS</text>
+    <text x="50" y="24" fill="#EEF1F4" font-family="Instrument Sans, Inter, ui-sans-serif, sans-serif" font-size="14" font-weight="600" letter-spacing="2.8">CONSEQUENCES</text>
     <text x="1072" y="22" fill="#8B939E" font-family="Instrument Sans, Inter, ui-sans-serif, sans-serif" font-size="13" font-weight="500" text-anchor="end">Open source · MIT</text>
   </g>
   <text x="80" y="230" fill="#4D8DFF" font-family="Instrument Sans, Inter, ui-sans-serif, sans-serif" font-size="13" font-weight="600" letter-spacing="2.3">A SHIP GATE FOR AI AGENTS</text>

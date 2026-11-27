@@ -26,7 +26,7 @@ import hashlib
 import threading
 import datetime
 
-VERSION = "1.7.0"
+VERSION = "1.8.0"
 APP_DIR = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__))
 RES_DIR = getattr(sys, "_MEIPASS", APP_DIR)          # bundled resources (ui/, icon) in the packaged app
 _APPDATA = os.environ.get("APPDATA") or os.path.join(os.path.expanduser("~"), ".config")
@@ -69,7 +69,9 @@ sys.path.insert(0, APP_DIR)
 import cb_activity  # noqa: E402  (who is working now: push beacons, see cb_activity.py)
 import cb_sample    # noqa: E402  (fictional data for "Show sample data"; never written to disk)
 import cb_gate      # noqa: E402  (gated point delegation: checks the owner defined, run by the gate itself)
-DEMO = {"on": False, "extra": [], "asks": None}   # sample mode: this session only, the real ledger is untouched
+import cb_referee   # noqa: E402  (deterministic verdicts on open asks: computed in memory, never written, never paid)
+import cb_refwork   # noqa: E402  (the referee's slow part: evidence, hearing, learning; its own idle process, rules only, no AI)
+DEMO = {"on": False, "extra": [], "asks": None}  # sample mode: this session only, the real ledger is untouched
 ACTIVITY_DIR = cb_activity.activity_dir()
 # beacons from other machines (e.g. an OpenCode server's bridge) arrive through a synced folder, if configured
 SHARED_ACTIVITY_DIR = os.environ.get("CB_SHARED_ACTIVITY") or CFG.get("shared_activity") or ""
@@ -290,6 +292,46 @@ def _row_time(ts):
         return None
 
 
+def gate_decisions():
+    try:
+        return cb_gate.decisions()
+    except Exception:
+        return []
+
+
+def referee_verdict(k, rows, gate, now, evidence=None, peers=None):
+    """The referee's verdict on one raw open ask, or None (sample mode, pool claims, suggestions for someone else,
+    or any referee error: the window must keep working without it). Nothing is written anywhere."""
+    if DEMO["on"] or k.get("kind") == "claim" or (k.get("by") and k.get("by") != k.get("agent")):
+        return None
+    try:
+        return cb_referee.judge(k, rows, gate, now, canon=canon_agent, evidence=evidence, peers=peers)
+    except Exception:
+        return None
+
+
+def referee_state():
+    """The worker's last pass (local app data), or {} in sample mode or before its first pass."""
+    if DEMO["on"]:
+        return {}
+    try:
+        return cb_refwork.read_state()
+    except Exception:
+        return {}
+
+
+def tie_rows(rows, rstate):
+    """Clock-robust times on every row, and the session a row belongs to when the worker saw it written or heard there."""
+    cb_referee.true_times(rows)
+    sessions = (rstate or {}).get("row_sessions") or {}
+    for r in rows:
+        m = re.search(r"\bs:([0-9a-f-]{8,})", r.get("event") or "")
+        s = m.group(1) if m else sessions.get(cb_refwork.cb_evidence.row_key(r.get("runner"), r.get("pts"), r.get("event")))
+        if s:
+            r["session"] = s
+    return rows
+
+
 def settle_asks(rows, now=None):
     """Close asks the owner already answered in the ledger, e.g. an award given in chat that the agent logged itself.
     Deliberately narrow: the ledger row must be for the same runner, must not be one this window wrote, and must fall
@@ -305,14 +347,16 @@ def settle_asks(rows, now=None):
                 start = float(k.get("started") or k.get("since") or end - 20 * 60)
             except (TypeError, ValueError):
                 continue
-            open_asks.setdefault(canon_agent(k.get("agent", "")), []).append((start, end, folder, k["file"]))
+            open_asks.setdefault(canon_agent(k.get("agent", "")), []).append((start, end, folder, k["file"], str(k.get("session") or "")))
     closed = 0
     for r in rows:
-        t = _row_time(r["ts"])
+        t = r["t"] if r.get("t") is not None else _row_time(r["ts"])
         if t is None or now - t > cb_activity.ASK_TTL or re.search(r"awarded in the Consequences Brain|\(Consequences Brain\)", r["event"]) \
                 or cb_gate.GATE_MARK.search(r["event"]):   # a gate award never closes (or doubles) the owner's open ask
             continue
         fit = [a for a in open_asks.get(r["agent"], []) if a[0] - 90 <= t + 59 and t <= a[1] + 120]
+        if r.get("session"):   # a row tied to a session closes only that session's ask (parallel sessions never cross)
+            fit = [a for a in fit if a[4] and (a[4].startswith(r["session"]) or r["session"].startswith(a[4]))]
         if len(fit) == 1:
             try:
                 rec = cb_activity.resolve_ask(fit[0][2], fit[0][3], "awarded", r["pts"])
@@ -557,6 +601,21 @@ def stale_runners(rows, agents, now=None):
     return {a: w for a, w in out.items() if a not in working}
 
 
+def referee_view(st):
+    """What the window shows about the referee itself: what it learned, what it heard, who should take the next job,
+    whether it may pay by itself, and whether anything changed its rules. Plain numbers, no transcript text."""
+    if not st:
+        return {"ready": False, "text": "Rules only, no AI. Reading evidence for the first time." if not DEMO["on"] else "Sample data."}
+    lr, hr = st.get("learn") or {}, st.get("hear") or {}
+    m = lr.get("metrics") or {}
+    return {"ready": True, "at": st.get("at"), "version": lr.get("version", 0), "cases": lr.get("cases_n", 0),
+            "status": lr.get("status"), "autonomy": bool(lr.get("autonomy_ok")), "metrics": m,
+            "notes": [n.get("text", "") for n in (lr.get("notes") or [])][-3:], "last": lr.get("last", ""),
+            "heard": hr.get("logged") or [], "needs_you": hr.get("needs_you") or [], "gaps": hr.get("history_gaps", 0),
+            "delegation": st.get("delegation") or [], "integrity": st.get("integrity") or {}, "clock": st.get("clock") or {},
+            "auto": st.get("auto") or {}, "never_auto": st.get("never_auto") or []}
+
+
 def build_graph():
     nodes, links, ids = [], [], {}
 
@@ -578,6 +637,11 @@ def build_graph():
 
     # --- points / strikes
     all_rows = read_ledger()
+    rstate = referee_state()
+    try:
+        tie_rows(all_rows, rstate)
+    except Exception:
+        pass
     if not DEMO["on"]:
         try:
             settle_asks(all_rows)
@@ -606,32 +670,37 @@ def build_graph():
     asks = []
     if DEMO["on"] and DEMO["asks"] is None:
         DEMO["asks"] = cb_sample.asks()
-    for where, folder in ([("sample", None)] if DEMO["on"] else ACTIVITY_DIRS.items()):
-        for k in (DEMO["asks"] if DEMO["on"] else cb_activity.read_asks(folder)):
-            if k.get("kind") == "claim":   # take points from the UNATTRIBUTED pool
-                pool = totals.get("UNATTRIBUTED", 0)
-                want = int(k.get("suggested") or 0)
-                asks.append({"kind": "claim", "agent": canon_agent(k.get("agent", "")) or "UNATTRIBUTED", "raw": k.get("agent", ""),
-                             "task": k.get("task", ""), "ts": k.get("ts", 0), "turns": 1, "suggested": want if 0 < want <= pool else None,
-                             "why": k.get("why", ""), "by": "", "pool": pool,
-                             "note": "" if 0 < want <= pool else "asks for %+d but the pool holds %+d" % (want, pool),
-                             "dir": where, "file": k.get("file")})
-                continue
-            by = k.get("by") or k.get("agent", "")
-            peer = canon_agent(by) != canon_agent(k.get("agent", ""))
-            sug, note = k.get("suggested"), ""
-            if peer:   # suggesting for someone else is a privilege of rank, checked against the live score
-                by_rank = ladder(totals.get(canon_agent(by) or "", 0))
-                if not can_suggest_for_others(by_rank):
-                    note = "%s is %s; suggesting points for others unlocks at %s" % (canon_agent(by), by_rank, next(
-                        (r[0] for r in framework()["ranks"] if re.search(r"suggest points for other", r[2], re.I)), "Lead"))
-                    sug = None
-                else:
-                    note = "%s (%s) suggests" % (canon_agent(by), by_rank)
-            asks.append({**ask_view(k), "ts": k.get("ts", 0), "turns": k.get("turns", 1),
-                         "suggested": sug, "why": k.get("why", "") if sug is not None else "", "by": by if peer else "",
-                         "quiet": bool(k.get("quiet")) and not peer,
-                         "note": note, "dir": where, "file": k.get("file")})
+    ref_now, ref_gate = time.time(), ([] if DEMO["on"] else gate_decisions())
+    ref_ev = rstate.get("asks") or {}
+    raw_asks = [(where, k) for where, folder in ([("sample", None)] if DEMO["on"] else ACTIVITY_DIRS.items())
+                for k in (DEMO["asks"] if DEMO["on"] else cb_activity.read_asks(folder))]
+    ref_peers = [k for _, k in raw_asks if k.get("kind") != "claim"]
+    for where, k in raw_asks:
+        if k.get("kind") == "claim":   # take points from the UNATTRIBUTED pool
+            pool = totals.get("UNATTRIBUTED", 0)
+            want = int(k.get("suggested") or 0)
+            asks.append({"kind": "claim", "agent": canon_agent(k.get("agent", "")) or "UNATTRIBUTED", "raw": k.get("agent", ""),
+                         "task": k.get("task", ""), "ts": k.get("ts", 0), "turns": 1, "suggested": want if 0 < want <= pool else None,
+                         "why": k.get("why", ""), "by": "", "pool": pool,
+                         "note": "" if 0 < want <= pool else "asks for %+d but the pool holds %+d" % (want, pool),
+                         "dir": where, "file": k.get("file")})
+            continue
+        by = k.get("by") or k.get("agent", "")
+        peer = canon_agent(by) != canon_agent(k.get("agent", ""))
+        sug, note = k.get("suggested"), ""
+        if peer:   # suggesting for someone else is a privilege of rank, checked against the live score
+            by_rank = ladder(totals.get(canon_agent(by) or "", 0))
+            if not can_suggest_for_others(by_rank):
+                note = "%s is %s; suggesting points for others unlocks at %s" % (canon_agent(by), by_rank, next(
+                    (r[0] for r in framework()["ranks"] if re.search(r"suggest points for other", r[2], re.I)), "Lead"))
+                sug = None
+            else:
+                note = "%s (%s) suggests" % (canon_agent(by), by_rank)
+        asks.append({**ask_view(k), "ts": k.get("ts", 0), "turns": k.get("turns", 1),
+                     "suggested": sug, "why": k.get("why", "") if sug is not None else "", "by": by if peer else "",
+                     "quiet": bool(k.get("quiet")) and not peer,
+                     "referee": None if peer else referee_verdict(k, all_rows, ref_gate, ref_now, ref_ev.get("%s/%s" % (where, k.get("file"))), ref_peers),
+                     "note": note, "dir": where, "file": k.get("file")})
     asks.sort(key=lambda k: -float(k["ts"] or 0))
     for b in (cb_sample.activity() if DEMO["on"] else [x for f in ACTIVITY_DIRS.values() for x in cb_activity.read(f)]):  # noqa: E501 (several sessions per runner are counted in the UI)
         a = canon_agent(b.get("agent", "")) or "UNATTRIBUTED"
@@ -777,7 +846,7 @@ def build_graph():
     splits = sorted({(a, b) for g in shared.values() for a in g for b in g if a < b})
     return {"nodes": nodes, "links": links, "totals": totals, "event_total": len(all_rows),
             "agent_counts": counts, "splits": [["a:" + a, "a:" + b] for a, b in splits],
-            "activity": activity, "asks": asks, "now": time.time(), "gate": _gate_view(),
+            "activity": activity, "asks": asks, "now": time.time(), "gate": _gate_view(), "referee": referee_view(rstate),
             "pools": pools, "experience": experience(rows), "net": sum(v for k, v in totals.items() if k != "ALL agents"), "brand": BRAND,
             "ledger_name": "sample data" if DEMO["on"] else os.path.basename(SCOREBOARD), "sample": DEMO["on"], "app_version": VERSION,
             "setup": {"empty": not all_rows and not asks and not activity, "ledger": SCOREBOARD, "cli": cli_prefix()},
@@ -823,7 +892,8 @@ class State:
         except Exception:
             act = ()
         gate = tuple(_sig(os.path.join(cb_gate.gate_dir(), n)) for n in ("gate.jsonl", "checks.json", "policy.json", "seal.json"))
-        return (_sig(SCOREBOARD), _sig(DECISIONS), _sig(STRIKES), _sig(INBOX), _sig(CONSEQ_SKILL), hash(jobs), hash(act), gate, DEMO["on"])
+        ref = _sig(os.path.join(cb_refwork.data_dir(), "state.json"))
+        return (_sig(SCOREBOARD), _sig(DECISIONS), _sig(STRIKES), _sig(INBOX), _sig(CONSEQ_SKILL), hash(jobs), hash(act), gate, ref, DEMO["on"])
 
     def refresh(self, force=False):
         s = self.current_sig()
@@ -850,7 +920,9 @@ STATE = State()
 # ---------------------------------------------------------------- update in place
 UI_DIR = os.environ.get("CB_UI_DIR") or os.path.join(APP_DIR, "ui")          # tests point these at temp copies
 CODE_FILES = os.environ["CB_CODE_FILES"].split(os.pathsep) if os.environ.get("CB_CODE_FILES") else [
-    os.path.join(APP_DIR, "consequences_brain.py"), os.path.join(APP_DIR, "cb_activity.py"), os.path.join(APP_DIR, "cb_gate.py")]
+    os.path.join(APP_DIR, "consequences_brain.py"), os.path.join(APP_DIR, "cb_activity.py"), os.path.join(APP_DIR, "cb_gate.py"),
+    os.path.join(APP_DIR, "cb_referee.py"), os.path.join(APP_DIR, "cb_refwork.py"), os.path.join(APP_DIR, "cb_learn.py"),
+    os.path.join(APP_DIR, "cb_evidence.py")]
 STATE_FILE = os.path.join(os.path.dirname(cb_activity.activity_dir()), "window.json")
 
 
@@ -864,6 +936,33 @@ def ui_sig():
 
 def code_sig():
     return tuple(_sig(f) for f in CODE_FILES)
+
+
+REFEREE_EVERY = 120
+
+
+def start_referee_worker():
+    """Run cb_refwork.py every couple of minutes in its own process at idle priority, one at a time, no window.
+    It is plain Python over local files (rules only, no AI); the window never waits for it."""
+    if os.environ.get("CB_NO_REFEREE_WORKER") == "1" or getattr(sys, "frozen", False):
+        return
+
+    def loop():
+        import subprocess
+        exe = sys.executable
+        w = os.path.join(os.path.dirname(exe), "pythonw.exe")
+        if os.path.exists(w):
+            exe = w
+        flags = (0x00000040 | 0x08000000) if os.name == "nt" else 0     # IDLE_PRIORITY_CLASS | CREATE_NO_WINDOW
+        while True:
+            if not DEMO["on"]:
+                try:
+                    subprocess.run([exe, os.path.join(APP_DIR, "cb_refwork.py")], cwd=APP_DIR, creationflags=flags,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=900)
+                except Exception:
+                    pass
+            time.sleep(REFEREE_EVERY)
+    threading.Thread(target=loop, daemon=True, name="referee-worker").start()
 
 
 # ---------------------------------------------------------------- live watcher
@@ -1210,6 +1309,24 @@ class Api:
                if res else "Nothing in the vault matches that. Try fewer or different words.")
         return {"answer": ans, "results": res, "node_ids": ids[:60]}
 
+    def referee_accept_seal(self):
+        """The owner accepts a change to the referee's code, caps or never-auto list (shown until he does)."""
+        try:
+            cb_refwork.accept_seal(cb_refwork.data_dir(), (CFG.get("referee") or {}).get("never_auto") or [])
+            STATE.refresh(force=True)
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def referee_revert(self, row_id):
+        """One-click undo of an automatic [referee] row: appends an equal and opposite row (append-only ledger)."""
+        row = next((r for r in read_ledger() if r.get("id") == row_id and cb_refwork.AUTO_MARK in (r.get("event") or "")), None)
+        if not row or any(cb_refwork.REVERT_MARK + " " + row_id in (r.get("event") or "") for r in read_ledger()):
+            return {"ok": False, "error": "not an automatic referee row, or already reverted"}
+        append_ledger([cb_refwork.revert_entry(row)])
+        STATE.refresh(force=True)
+        return {"ok": True}
+
     def award(self, where, name, points):
         """The owner's click on a points ask: append one row to Scoreboard.md (backup first) and close the ask."""
         try:
@@ -1295,9 +1412,10 @@ class Api:
         """Clear every finished-work card that did not ask for points (one click; nothing is written to the ledger)."""
         n = 0
         try:
+            rows, gate, now = ([] if DEMO["on"] else read_ledger()), gate_decisions(), time.time()
             for folder in ACTIVITY_DIRS.values():
                 for k in cb_activity.read_asks(folder):
-                    if k.get("quiet"):
+                    if k.get("quiet") and not (referee_verdict(k, rows, gate, now) or {}).get("points"):   # those show with the loud ones
                         cb_activity.resolve_ask(folder, k["file"], "dismissed")
                         n += 1
             STATE.refresh(force=True)
@@ -1614,6 +1732,7 @@ def main():
                 import cb_sessions
                 SESSIONS = cb_sessions.ClaudeSessions(out=ACTIVITY_DIR)
                 SESSIONS.start()
+                start_referee_worker()   # same guard: tests set CB_NO_SESSIONS and never get a worker
         push(STATE.version)  # safety net if the page's own first load missed
         sel = os.environ.get("CB_DEMO_SELECT")
         if sel:

@@ -1,5 +1,5 @@
 // Consequences Brain: 3D "brain in space" score map.
-// Rendering pipeline ported from an earlier ARBH Labs brain view (three.js r170):
+// Rendering pipeline ported from an earlier in-house brain view (three.js r170):
 // same point-sprite node shader (core + gaussian glow + hologram rings on hubs), additive link shader with energy
 // flow, dust field, exp2 fog, UnrealBloom (0.6, 0.5, 0.32) + OutputPass, gimbal rings around the focus.
 // Mapping: core = the Consequences ledger, hubs = agents (size = |net score|, warm = positive, red = negative),
@@ -291,7 +291,7 @@ function setData(model) {
   const nodes = [];
   const first = S.first && !REDUCED;
   // core
-  const core = old.get("@core") || { id: "@core", kind: 2, label: "CONSEQUENCES", px: spring(0, 60), py: spring(0, 60), pz: spring(0, 60), sz: spring(70, 120), spawn: first ? t : -100, changed: -100 };
+  const core = old.get("@core") || { id: "@core", kind: 2, label: "REFEREE", px: spring(0, 60), py: spring(0, 60), pz: spring(0, 60), sz: spring(70, 120), spawn: first ? t : -100, changed: -100 };
   core.color = COL.core; core.val = 0; nodes.push(core);
   agents.forEach((a, i) => {
     let n = old.get(a.id);
@@ -342,8 +342,51 @@ function setData(model) {
   buildGeometry();
   if (S.first) { S.first = false; S.bootT = t; frameOverview(true); }
   if (model.selected !== undefined) applySelection(model.selected, false);
-  kick(first ? 3200 : 2400);
+  kick(first ? 3200 : S.nodes.some((n) => n.delta && t - n.changed < 0.1) ? 3600 : 2400);
   if (!running()) renderOnce(true); // stopped (unfocused/hidden/idle): show the new data in one snapped frame
+}
+
+/* point effects, drawn only while one is running: a gain bursts into gold sparks and diamonds, a loss blinks the runner red */
+const FX_MS = 3.2, FX_N = 140, FX_MAX = 4;
+function diamondTexture() {
+  const c = document.createElement("canvas"); c.width = c.height = 64;
+  const g = c.getContext("2d"); g.fillStyle = "#fff"; g.shadowColor = "#fff"; g.shadowBlur = 8;
+  g.beginPath(); g.moveTo(32, 4); g.lineTo(52, 32); g.lineTo(32, 60); g.lineTo(12, 32); g.closePath(); g.fill();
+  return new THREE.CanvasTexture(c);
+}
+const fxGeo = new THREE.BufferGeometry();
+fxGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(FX_N * FX_MAX * 3), 3).setUsage(THREE.DynamicDrawUsage));
+fxGeo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(FX_N * FX_MAX * 3), 3).setUsage(THREE.DynamicDrawUsage));
+const fxPts = new THREE.Points(fxGeo, new THREE.PointsMaterial({ size: 24, map: diamondTexture(), vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
+fxPts.frustumCulled = false; fxPts.renderOrder = 3; scene.add(fxPts);
+const FX_GOLD = ["#ffc14d", "#ffe39a", "#bdf3ff", "#ffffff"];
+function writeEffects(t) {
+  if (!nodePts) return;
+  const pos = fxGeo.attributes.position.array, col = fxGeo.attributes.color.array, nc = nodePts.geometry.attributes.color;
+  let w = 0;
+  S.fx = [];
+  for (const n of S.nodes) {
+    if (n.kind !== 1) continue;
+    const age = t - n.changed, live = !!n.delta && age >= 0 && age < FX_MS;
+    if (!live && !n.fxOn) continue;
+    const loss = live && n.delta < 0;
+    tmpC.set(loss && Math.floor(age * 5) % 2 === 0 ? "#ff1f3d" : n.color);   // five blinks a second, then back to normal
+    nc.array.set([tmpC.r, tmpC.g, tmpC.b], n.i * 3); nc.needsUpdate = true;
+    n.fxOn = live;
+    if (!live) continue;
+    S.fx.push({ id: n.id, kind: loss ? "loss" : "gain" });
+    if (w + FX_N > FX_N * FX_MAX) continue;
+    const f = age / FX_MS, ease = 1 - Math.pow(1 - f, 3), fade = Math.pow(1 - f, 1.3);
+    for (let i = 0; i < (loss ? 24 : FX_N); i++, w++) {
+      const u = hash(n.id + "u" + i) * 2 - 1, a = hash(n.id + "a" + i) * Math.PI * 2, s = Math.sqrt(1 - u * u);
+      const reach = loss ? 45 + 20 * hash(n.id + "r" + i) : (90 + 190 * hash(n.id + "r" + i)) * Math.min(1.6, 0.7 + Math.abs(n.delta) / 60);
+      pos.set([n.x + Math.cos(a) * s * reach * ease, n.y + u * reach * ease - (loss ? 0 : 40 * f * f), n.z + Math.sin(a) * s * reach * ease], w * 3);
+      tmpC.set(loss ? "#ff2a45" : FX_GOLD[i % FX_GOLD.length]).multiplyScalar(fade);
+      col.set([tmpC.r, tmpC.g, tmpC.b], w * 3);
+    }
+  }
+  fxGeo.setDrawRange(0, w);
+  fxGeo.attributes.position.needsUpdate = true; fxGeo.attributes.color.needsUpdate = true;
 }
 
 function shellRadius(n, s) { return n.sz.x * 1.05 + 30 + s * 24; }
@@ -485,6 +528,14 @@ function writeScene(t, dt) {
   for (const [a, b, k] of S.links) {
     if (k !== 0 || w >= 150) continue;
     const burst = t - b.changed < 3 && t - b.changed > 0;
+    if (b.id === S.refTarget) {   // gold light from the referee (centre) to the runner whose ask it is judging
+      for (let r = 0; r < 7 && w < 160; r++, w++) {
+        const f = (t * 0.55 + r / 7) % 1;
+        pp[w * 3] = a.x + (b.x - a.x) * f; pp[w * 3 + 1] = a.y + (b.y - a.y) * f; pp[w * 3 + 2] = a.z + (b.z - a.z) * f;
+        tmpC.set("#ffc14d"); pc[w * 3] = tmpC.r; pc[w * 3 + 1] = tmpC.g; pc[w * 3 + 2] = tmpC.b;
+      }
+      continue;
+    }
     if (!b.work && !burst) continue;
     for (let r = 0; r < (burst ? 6 : 3) && w < 150; r++, w++) {
       let f = (t * (burst ? 0.9 : 0.32) + r / (burst ? 6 : 3) + hash("w" + b.id)) % 1;
@@ -507,6 +558,7 @@ function writeScene(t, dt) {
   parts.geometry.setDrawRange(0, w);
   parts.geometry.attributes.position.needsUpdate = true;
   parts.geometry.attributes.color.needsUpdate = true;
+  writeEffects(t);
   // gimbal
   const sel = S.selected && S.byId.get(S.selected);
   ringGroup.visible = !!sel;
@@ -576,7 +628,11 @@ function freeArea() {
 function freeAreaNow() {
   const g = document.querySelector('[data-panel="graph"]');
   const r = g ? g.getBoundingClientRect() : { left: 0, top: 0, width: innerWidth, height: innerHeight };
-  return { x: r.left, y: r.top, w: Math.max(1, r.width), h: Math.max(1, r.height) };
+  const box = document.getElementById("ref-live");   // the scene is framed above the referee console, never under it
+  const keep = !box || box.hidden ? 0 : r.height < 300 ? 138 : 140;   // matches the console's CSS heights
+  // never fit to a sliver: a panel measured mid-layout (or minimised) would push the camera miles out
+  const minW = Math.max(160, innerWidth * 0.35), minH = Math.max(120, innerHeight * 0.3);
+  return { x: r.left, y: r.top, w: Math.max(minW, r.width), h: Math.max(minH, r.height - keep) };
 }
 function fitDist(r) {
   const f = freeArea();
@@ -595,6 +651,7 @@ function cloudBounds() {
   return { c, r };
 }
 function frameOverview(snap) {
+  S.userCam = false;
   const b = cloudBounds();
   S.center.copy(b.c); S.radius = b.r;
   if (snap) { controls.target.copy(b.c); camera.position.copy(b.c).add(new THREE.Vector3(0.32, 0.26, 1).normalize().multiplyScalar(fitDist(b.r))); controls.update(); }
@@ -657,32 +714,34 @@ function writeLabels() {
   const f = freeArea(), placed = [], discs = [];
   // a label never sits on another label or on another agent's node: every agent disc is an obstacle
   for (const n of S.nodes) if (n.kind >= 1) { const p = (n.screen = project(n)); if (p) { const r = Math.min(64, discRadius(n, p) * 0.8); discs.push([p.x - r, p.y - r, 2 * r, 2 * r, n]); } }
-  const want = S.nodes.filter((n) => n.kind === 1 || n.id === S.selected || n.id === S.hover)
-    .sort((a, b) => (b.id === S.selected) - (a.id === S.selected) || (b.id === S.hover) - (a.id === S.hover) || (!!b.work - !!a.work) || (!!b.ask - !!a.ask) || Math.abs(b.val) - Math.abs(a.val));
+  const box = document.getElementById("ref-live");   // the referee console is an obstacle for every label
+  if (box && !box.hidden) { const r = box.getBoundingClientRect(); placed.push([r.left, r.top, r.width, r.height]); }
+  const want = S.nodes.filter((n) => n.kind >= 1 || n.id === S.selected || n.id === S.hover)
+    .sort((a, b) => ((b.kind === 2) - (a.kind === 2)) || (b.id === S.selected) - (a.id === S.selected) || (b.id === S.hover) - (a.id === S.hover) || (!!b.work - !!a.work) || (!!b.ask - !!a.ask) || Math.abs(b.val) - Math.abs(a.val));
   let k = 0;
   for (const n of want) {
     const p = project(n);
     n.screen = p;
     if (!p) continue;
-    const txt = n.kind === 1 ? n.label + "  " + fmt(n.val) + (n.work ? "  · working" + (n.wn > 1 ? " ×" + n.wn : "") : n.ask ? "  · asks" : "") : fmt(n.val) + "  " + n.title;
+    const txt = n.kind === 2 ? n.label + (S.refTarget ? "  · judging" : "") : n.kind === 1 ? n.label + "  " + fmt(n.val) + (n.work ? "  · working" + (n.wn > 1 ? " ×" + n.wn : "") : n.ask ? "  · asks" : "") : fmt(n.val) + "  " + n.title;
     if (n.kind === 0 && n.id !== S.selected) continue;            // hover text goes to the tooltip box
     let el = labelPool[k];
     if (!el) { el = document.createElement("div"); labelsEl.appendChild(el); labelPool.push(el); }
-    const cls = "lbl" + (n.kind === 1 ? " hub" : " ev") + (n.work ? " work" : "") + (n.id === S.selected ? " sel" : "") + (S.selected && n.hlTo < 0.5 ? " dim" : "");
+    const cls = "lbl" + (n.kind >= 1 ? " hub" : " ev") + (n.work ? " work" : "") + (n.id === S.selected ? " sel" : "") + (S.selected && n.hlTo < 0.5 ? " dim" : "");
     if (el.className !== cls) el.className = cls;
     if (el.textContent !== txt) el.textContent = txt;
     if (el.style.display) el.style.display = "";
-    const color = n.kind === 1 ? n.color : "";
+    const color = n.kind === 1 ? n.color : n.kind === 2 ? "#ffd88a" : "";
     if (el._color !== color) { el.style.color = color; el._color = color; }
-    const prio = n.id === S.selected || n.work || n.ask;
-    const mw = prio ? Math.max(120, Math.min(f.w - 24, n.kind === 1 ? 9999 : 380)) + "px" : "";
-    if (el._mw !== mw) { el.style.maxWidth = mw; el.style.whiteSpace = prio && n.kind === 1 ? "normal" : ""; el._mw = mw; }
+    const prio = n.kind === 2 || n.id === S.selected || n.work || n.ask;
+    const mw = prio ? Math.max(120, Math.min(f.w - 24, n.kind >= 1 ? 9999 : 380)) + "px" : "";
+    if (el._mw !== mw) { el.style.maxWidth = mw; el.style.whiteSpace = prio && n.kind >= 1 ? "normal" : ""; el._mw = mw; }
     const key = cls + "|" + txt + "|" + mw;
     let sz = labelSize.get(key);
     if (!sz) { sz = [el.offsetWidth, el.offsetHeight]; labelSize.set(key, sz); if (labelSize.size > 600) labelSize.clear(); }
     const lw = sz[0], lh = sz[1];
     if (n.kind === 0 && lh > f.h * 0.3) { el.style.display = "none"; el._tf = ""; continue; }   // long event text: Detail shows it
-    const r = n.kind === 1 ? discRadius(n, p) : Math.max(6, (n.sz.x * nodeMat.uniforms.uScale.value) / Math.max(1, p.depth) / (S.dpr || 1) * 0.35);
+    const r = n.kind >= 1 ? discRadius(n, p) : Math.max(6, (n.sz.x * nodeMat.uniforms.uScale.value) / Math.max(1, p.depth) / (S.dpr || 1) * 0.35);
     let ok = false, x = 0, y = p.y - lh / 2;
     const cx = Math.min(f.x + f.w - 6 - lw, Math.max(f.x + 6, p.x - lw / 2));
     const cands = [[p.x + r + 6, p.y - lh / 2], [p.x - r - 6 - lw, p.y - lh / 2], [cx, p.y + r + 5], [cx, p.y - r - 5 - lh]];
@@ -708,7 +767,7 @@ function writeLabels() {
   }
   for (let j = k; j < labelPool.length; j++) if (labelPool[j].style.display !== "none") { labelPool[j].style.display = "none"; labelPool[j]._tf = ""; }
   // screen positions for picking (all nodes)
-  for (const n of S.nodes) if (n.kind === 0 || n.kind === 2) n.screen = project(n);
+  for (const n of S.nodes) if (n.kind === 0) n.screen = project(n);
 }
 
 // ---------------------------------------------------------------- render loop + scheduler
@@ -810,8 +869,8 @@ addEventListener("pointerup", (e) => {
   down = null; kick(1500);
 });
 canvas.addEventListener("dblclick", (e) => { if (!pick(e.clientX, e.clientY)) { window.__cbSelect && window.__cbSelect(null); frameOverview(false); kick(1500); } });
-canvas.addEventListener("wheel", () => { cam.active = false; kick(1200); }, { passive: true });
-controls.addEventListener("start", () => { cam.active = false; kick(1500); });
+canvas.addEventListener("wheel", () => { cam.active = false; S.userCam = true; kick(1200); }, { passive: true });
+controls.addEventListener("start", () => { cam.active = false; S.userCam = true; kick(1500); });
 let hoverQueued = false;
 canvas.addEventListener("pointermove", (e) => {
   if (S.dragging) return;
@@ -859,9 +918,12 @@ document.addEventListener("visibilitychange", () => {
 });
 canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); lost = true; stopLoop(); }, false);
 canvas.addEventListener("webglcontextrestored", () => { lost = false; applySize(); renderOnce(true); kick(600); }, false);
-let resizeRaf = 0;
+let resizeRaf = 0, refitT = 0;
 addEventListener("resize", () => {
   applySize();
+  // once the size settles, re-frame the overview unless the owner has moved the camera or picked a node
+  clearTimeout(refitT);
+  refitT = setTimeout(() => { freeCache = null; if (!S.userCam && !S.selected && S.nodes.length) { frameOverview(false); kick(1200); } }, 300);
   if (!resizeRaf) resizeRaf = requestAnimationFrame(() => { resizeRaf = 0; renderOnce(false); kick(300); });
   renderOnce(false); // repaint now: no stretched or blank frame while resizing
 });
@@ -884,6 +946,9 @@ window.CBScene = {
   setView(v) { if (!v || !v.t || !v.p) return; cam.active = false; controls.target.fromArray(v.t); camera.position.fromArray(v.p); controls.update(); renderOnce(true); },
   nodeInfo(id) { const n = S.byId.get(id); return n && { kind: n.kind, fresh: !!n.fresh, spawn: n.spawn, changed: n.changed, now: nowS(), agent: n.agent && n.agent.id }; },
   pulsing() { const t = nowS(); return S.nodes.filter((n) => n.kind === 1 && t - n.changed >= 0 && t - n.changed < 6).map((n) => n.id); },
+  referee(id) { S.refTarget = id && S.byId.has(id) ? id : null; },
+  refereeTarget() { return S.refTarget || null; },
+  effects() { return S.fx || []; },
   setFocused() {},                                   // kept for older callers; focus no longer changes anything
   stats() {
     const gl = renderer.getContext(), ext = gl.getExtension("WEBGL_debug_renderer_info");

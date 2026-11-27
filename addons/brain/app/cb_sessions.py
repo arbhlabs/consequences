@@ -77,6 +77,9 @@ class Session:
             msg = r.get("message") or {}
             self.cwd = r.get("cwd") or self.cwd
             if r.get("type") == "assistant":
+                if r.get("isApiErrorMessage") or msg.get("model") == "<synthetic>":   # an error reply: nobody is working
+                    self.state = "idle"
+                    continue
                 self.model = _model_name(msg.get("model")) or self.model
                 sr = msg.get("stop_reason")
                 if sr == "end_turn":
