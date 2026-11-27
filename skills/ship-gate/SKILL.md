@@ -5,7 +5,7 @@ description: >-
   page, post, file, script, report): a cheap scripted release gate, the cost of
   a miss, and how to log it so the same mistake never ships twice. Mandatory for
   every AI agent doing work for the owner.
-version: 1.4.0
+version: 1.5.0
 ---
 # Ship gate: nothing broken reaches the owner
 

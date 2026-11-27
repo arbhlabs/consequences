@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.0
+- **Consequences Brain** (optional add-on, `addons/brain`): a live 3D desktop window for the points ledger.
+  - It shows who leads, who is working right now (Claude Code sessions are detected from their transcripts, other agents push a beacon) and who is waiting for points.
+  - One-click Accept writes the agent's own suggested amount.
+  - Promotion ranks: a Lead may suggest points for other agents.
+  - Claims from the UNATTRIBUTED pool with evidence.
+  - Reads the add-on's `ledger.jsonl` or a `Scoreboard.md` table.
+  - Push only: OS change notifications. It reflows at any window size.
+- **One-click Windows installer** `ConsequencesSetup.exe` with checkboxes for the skill, the points add-on and the Brain window. No admin rights or Python needed, and it uninstalls from Settings → Apps.
+- OpenCode bridge (`addons/brain/bridges`) to show agents on another machine through a synced folder.
+
 ## Unreleased
 - Public README, diagrams, and a recorded real run of the gate on a sample deliverable.
 - Points add-on genericized for public use, with a scoreboard template and a rule to record awards automatically.

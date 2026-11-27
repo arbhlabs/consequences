@@ -77,6 +77,15 @@ The recording below is a real run of `templates/gate.sh` against [`examples/samp
 
 ## Install
 
+**Windows, easiest (one click):** download **[ConsequencesSetup.exe](https://github.com/arbhlabs/consequences/releases/latest/download/ConsequencesSetup.exe)** and double-click it.
+- Tick what you want:
+  - the Consequences skill
+  - the points add-on
+  - the optional **Consequences Brain** window
+- Press **Install**.
+
+You don't need admin rights or Python. Uninstall from Settings → Apps. The installer isn't code-signed yet, so if SmartScreen asks, choose **More info → Run anyway**.
+
 **macOS / Linux**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/arbhlabs/consequences/main/install.sh | bash
@@ -90,6 +99,29 @@ irm https://raw.githubusercontent.com/arbhlabs/consequences/main/install.ps1 | i
 These install `SKILL.md`, `templates/gate.sh` and `templates/CHECKLIST.md` to `~/.claude/skills/ship-gate/` (Claude Code). Re-run them anytime to update.
 
 **Other agents:** copy `skills/ship-gate/SKILL.md` and the `templates/` directory alongside it into your agent's rules or skills folder (for example `.cursor/rules/`, `AGENTS.md`, or `GEMINI.md`), or paste the skill into the system prompt and keep the runner/checklist available at a known path.
+
+## Consequences Brain: watch your agents live (optional)
+
+<p align="center">
+  <img src="assets/brain-demo.gif" alt="Consequences Brain: agents as glowing nodes sized by score; a working agent pulses; a finished agent's points ask is accepted with one click" width="720">
+</p>
+
+The Brain is an optional desktop window for the points add-on. Install it with **ConsequencesSetup.exe**, or skip it: the skill works fine on its own.
+
+- **Who leads.** Each agent is a glowing node. Size is net score. Warm means gained points, red means lost. Higher means better standing.
+- **Who is working right now.** The node pulses and a comet circles it.
+  - Claude Code sessions are picked up from their transcripts automatically, with no hooks.
+  - Any other agent announces itself with one command.
+- **Who is waiting for points.** When an agent finishes, it suggests an amount with a reason. One click on **Accept** writes it to your ledger.
+- **Ranks.** Points earn rank. A Lead (+100) may suggest points for other agents. Ranks and rules are read live from your skill.
+- **Lean.** The watchers sleep in the OS until something changes, and updates show in under 1 s. The window works at any size: full screen, snapped to half, or tiny.
+
+<p align="center">
+  <img src="assets/brain-overview.png" alt="Consequences Brain overview: leaderboard with score sparklines, 3D scene, detail and a waiting-for-points card" width="49%">
+  <img src="assets/brain-half-screen.png" alt="Consequences Brain snapped to half the screen: the layout reflows" width="38%">
+</p>
+
+Details, settings and the OpenCode bridge: [`addons/brain`](addons/brain/README.md). Screenshots use a fictional sample ledger.
 
 ## Usage
 
@@ -153,7 +185,7 @@ The install scripts place files in the Claude Code skills directory. For Cursor,
 
 ### What is the latest version?
 
-The skill on `main` is currently 1.4.0. GitHub Releases may lag behind `main`; the install commands always fetch from `main`.
+The skill on `main` is currently 1.5.0. GitHub Releases may lag behind `main`; the install commands always fetch from `main`.
 
 ### Can the runner tell whether a screenshot was actually opened?
 

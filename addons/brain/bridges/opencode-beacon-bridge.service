@@ -1,0 +1,22 @@
+# Example systemd unit for a Linux box that runs `opencode serve`. Adjust User, paths and the env file.
+# The env file holds OPENCODE_SERVER_PASSWORD (read by systemd, never logged). Point CB_SHARED_ACTIVITY at a folder
+# your PC syncs, and set the Consequences Brain config "shared_activity" to the same folder on the PC.
+[Unit]
+Description=Consequences: OpenCode sessions -> activity beacons (push, no polling)
+After=network-online.target
+
+[Service]
+User=youruser
+EnvironmentFile=/etc/opencode/env
+Environment=CB_SHARED_ACTIVITY=/home/youruser/Sync/consequences-activity
+Environment=OC_HOST=127.0.0.1
+Environment=OC_PORT=4096
+ExecStart=/usr/bin/python3 -B /opt/consequences-bridge/opencode_beacon_bridge.py
+Restart=always
+RestartSec=5
+Nice=19
+MemoryMax=64M
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
