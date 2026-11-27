@@ -215,6 +215,7 @@ def main():
                       "Idle." in neg and "Only one scored event" in neg and "restarted a live service (2026-01-04" in neg, neg)
                 p.keyboard.press("Escape")
                 p.wait_for_timeout(500)
+                experience_kept(p)
                 experience_view(p, layout)
                 controls(p, scene_ok)
             p.close()
@@ -297,6 +298,17 @@ def experience_view(p, layout):
           all(w in body.lower() for w in ("programs", "models", "claude code", "used most", "% good", "not name")), body[:500])
     layout(p, "experience tab")
     p.click('#detail-tabs [data-tab="moves"]')
+    p.wait_for_timeout(500)
+
+
+def experience_kept(p):
+    """A maximised window is a little shorter than the screen: the experience line must survive that."""
+    p.set_viewport_size({"width": 1920, "height": 1000})
+    p.wait_for_timeout(700)
+    got = p.evaluate("Array.prototype.map.call(document.querySelectorAll('[data-leader]:not([hidden]):not(.working) .standing'),"
+                     "function(e){return [e.getBoundingClientRect().height,e.textContent];})")
+    check("1920x1000: every leaderboard row still shows its experience line", got and all(h > 0 and "XP" in t for h, t in got), got[:4])
+    p.set_viewport_size({"width": 1920, "height": 1080})
     p.wait_for_timeout(500)
 
 

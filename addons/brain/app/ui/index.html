@@ -197,7 +197,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--holo);outline-o
 .spark path{fill:none;stroke-width:1.4;vector-effect:non-scaling-stroke;stroke-linejoin:round}
 .spark .zero{stroke:rgba(143,179,196,.25);stroke-width:1;stroke-dasharray:2 3}
 .spark .area{stroke:none}
-.rows.dense .spark,.rows.compact .spark{display:none}
+.rows.slim .spark,.rows.dense .spark,.rows.compact .spark{display:none}
 .panel-foot{margin-top:auto;padding:9px 13px;border-top:1px solid var(--line);color:var(--ink-2);font:10.5px/1.35 var(--mono);letter-spacing:.03em}
 
 /* detail / feed / ask */
@@ -613,11 +613,12 @@ function scoreSpring(a){
   return s;
 }
 function fitRows(host){
-  host.classList.remove('dense','compact');
+  host.classList.remove('slim','dense','compact');
   var rows=host.querySelectorAll('.row'),more=host.querySelector('.more');
   for(var i=0;i<rows.length;i++)rows[i].hidden=false;
   if(more)more.hidden=true;
   if(host.scrollHeight<=host.clientHeight+1)return;
+  host.classList.add('slim');if(host.scrollHeight<=host.clientHeight+1)return;   // sparklines go first, the experience line stays
   host.classList.add('dense');if(host.scrollHeight<=host.clientHeight+1)return;
   host.classList.remove('dense');host.classList.add('compact');if(host.scrollHeight<=host.clientHeight+1)return;
   if(more)more.hidden=false;
@@ -713,7 +714,7 @@ function renderLeaderboard(changed,first){
     var wk=work[a.label];
     return '<button class="row '+(state.selected===a.id?'selected':'')+(wk?' working':'')+'" data-leader="'+esc(a.id)+'" data-val="'+v+'" data-tier="'+tm[a.id]+'" aria-label="Select '+esc(a.label)+'">'+
       '<span class="rank">'+String(i+1).padStart(2,'0')+'</span>'+
-      '<span class="who"><i class="sw '+cls+'"></i><span class="nm"><span class="name">'+esc(a.label)+'</span><span class="standing">'+esc(a.standing||'Scored runner')+' · '+(g?expLine(g)+(byXp?' · '+fmt(v)+' pts':' · XP '+g.xp):agentCount(a.label)+' jobs')+'</span>'+(wk?'<span class="work"><i class="beat"></i>working'+(wk.n>1?' ×'+wk.n:'')+(wk.task?'<span class="task"> · '+esc(wk.task)+'</span>':'')+'</span>':'')+'</span></span>'+
+      '<span class="who"><i class="sw '+cls+'"></i><span class="nm"><span class="name">'+esc(a.label)+'</span><span class="standing">'+esc(g?(byXp?fmt(v)+' pts':'XP '+g.xp)+' · '+expLine(g):(a.standing||'Scored runner')+' · '+agentCount(a.label)+' jobs')+'</span>'+(wk?'<span class="work"><i class="beat"></i>working'+(wk.n>1?' ×'+wk.n:'')+(wk.task?'<span class="task"> · '+esc(wk.task)+'</span>':'')+'</span>':'')+'</span></span>'+
       (byXp?'<span class="score '+cls+'" title="Proven XP">'+xpv(a)+' XP</span>':'<span class="score '+cls+'" data-score-for="'+esc(a.id)+'">'+fmt(s.x)+'</span>')+
       spark(a,v,tm[a.id])+'<span class="bar '+cls+'"><i style="width:'+w+'%"></i></span></button>';
   }).join('')+'<div class="more" hidden></div>';
