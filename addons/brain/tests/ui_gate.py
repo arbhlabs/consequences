@@ -224,6 +224,7 @@ def main():
 
         if not ARGS.readonly:
             gate_view(page, layout)
+            stale_view(page, layout)
             first_run(page, layout, copied)
         b.close()
     httpd.shutdown()
@@ -366,6 +367,19 @@ def controls(p, scene_ok):
     last = json.loads(lines[-1])
     check("click: Accept writes one ledger entry with the agent's own reason", len(lines) == before + 1 and "[Image" not in last["task"] and last["points"] != 0, last)
     check("ledger was backed up before the write", os.path.isdir(os.path.join(TMP, "bak")) and os.listdir(os.path.join(TMP, "bak")))
+    p.wait_for_timeout(600)
+    who = cb.canon_agent(last["agent"])
+    row = next((r for r in p.evaluate(T + ".rows()") if r["name"] == who), {})
+    check("the awarded runner's row keeps a visible '%+d now' chip (not a 1 s flash)" % last["points"],
+          row.get("delta", "").endswith("now"), row)
+    cb_activity.write(last["agent"], "working", "still working", "chipw", folder=ACT)   # the chip must survive the working line
+    cb.STATE.refresh(force=True)
+    p.evaluate("window.__cbChanged(-20)")
+    p.wait_for_timeout(700)
+    row = next((r for r in p.evaluate(T + ".rows()") if r["name"] == who), {})
+    vis = p.evaluate("[...document.querySelectorAll('[data-leader] .delta')].some(e => e.getBoundingClientRect().width > 0)")
+    check("the chip stays visible while that runner is working", vis and row.get("delta"), row)
+    cb_activity.write(last["agent"], "idle", "", "chipw", folder=ACT)
     check("the awarded card is gone", p.evaluate(T + ".asksView()")["loud"] == 6, p.evaluate(T + ".asksView()"))
     p.click('.ask-card:has(button.accept:has-text("Accept")) [data-dismiss] >> nth=0')
     p.wait_for_timeout(700)
@@ -476,6 +490,33 @@ def gate_view(page, layout):
     for n_ in ("seal.json", "policy.json", "checks.json", "gate.jsonl"):
         os.remove(os.path.join(cb_gate.gate_dir(), n_))
     cb.STATE.refresh(force=True)
+
+
+def stale_view(page, layout):
+    """Runners that cannot work now fold into one line at the bottom; they never hold a top spot or the green tier."""
+    cb.CFG["stale"] = {"runners": ["Qwen", "Riley"], "why": "their bot is out of usage"}
+    cb.STATE.refresh(force=True)
+    try:
+        for w, h in ((1920, 1080), (700, 560)):
+            p = page(w, h)
+            rows = p.evaluate("window.__cbTest.rows()")
+            names = [r["name"] for r in rows]
+            line = p.inner_text(".stale-line") if p.query_selector(".stale-line") else ""
+            check("%dx%d stale: folded into one line, not on the board" % (w, h), "Qwen" not in names and "Riley" not in names
+                  and "2 stale" in line and "Qwen" in line, (names, line))
+            check("%dx%d stale: the top spot and green go to a runner that can work" % (w, h), rows and not rows[0]["stale"] and rows[0]["name"] not in ("Qwen", "Riley"), rows[:1])
+            layout(p, "stale folded %dx%d" % (w, h))
+            p.click(".stale-line")
+            p.wait_for_timeout(400)
+            rows = p.evaluate("window.__cbTest.rows()")
+            st = [r["name"] for r in rows if r["stale"]]
+            check("%dx%d stale: Show lists them dimmed at the bottom" % (w, h), sorted(st) == ["Qwen", "Riley"] and rows[-1]["stale"], st)
+            layout(p, "stale open %dx%d" % (w, h))
+            check("%dx%d stale: no script errors" % (w, h), not p.errs, p.errs[:2])
+            p.close()
+    finally:
+        cb.CFG.pop("stale", None)
+        cb.STATE.refresh(force=True)
 
 
 def first_run(page, layout, copied):

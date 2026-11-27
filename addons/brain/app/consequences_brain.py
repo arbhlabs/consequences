@@ -530,6 +530,33 @@ def _gate_view():
                 "jobs": [], "items": [], "waiting": 0}
 
 
+def stale_runners(rows, agents, now=None):
+    """Runners that cannot work right now, folded to the bottom of the board: the owner's list in config "stale"
+    (names, or {"runners": [...], "why": "..."}), plus anyone with no scored event for "stale_after_days" (default 7).
+    A runner that is working right now is never stale."""
+    if DEMO["on"]:
+        return {}
+    now = time.time() if now is None else now
+    cfg = CFG.get("stale") or []
+    names, why = (cfg.get("runners", []), cfg.get("why", "")) if isinstance(cfg, dict) else (cfg, "")
+    out = {}
+    for n in names if isinstance(names, list) else []:
+        a = canon_agent(str(n))
+        if a in agents:
+            out[a] = why or "marked stale in settings"
+    days = float(CFG.get("stale_after_days", 7) or 0)
+    if days:
+        last = {}
+        for r in rows:
+            t = _row_time(r["ts"]) or 0
+            last[r["agent"]] = max(last.get(r["agent"], 0), t)
+        for a in agents:
+            if a not in out and not is_pool(a) and last.get(a) and now - last[a] > days * 86400:
+                out[a] = "no points for %d days" % ((now - last[a]) // 86400)
+    working = {canon_agent(b.get("agent", "")) for f in ACTIVITY_DIRS.values() for b in cb_activity.read(f) if b.get("active")}
+    return {a: w for a, w in out.items() if a not in working}
+
+
 def build_graph():
     nodes, links, ids = [], [], {}
 
@@ -620,13 +647,14 @@ def build_graph():
             agents.add(a)
     pools = {a: totals.get(a, 0) for a in sorted(agents) if is_pool(a)}
     lesson_text = "" if DEMO["on"] else _read(CONSEQ_SKILL)
+    stale = stale_runners(rows, agents)
     for a in sorted(agents):
         if is_pool(a):
             continue
         t = totals.get(a, 0)
         add({"id": "a:" + a, "type": "agent", "label": a, "ts": "", "val": t,
              "text": "Agent / model: %s\nScore: %+d over %d event(s)\nStanding: %s" % (a, t, counts.get(a, 0), ladder(t)),
-             "path": SCOREBOARD, "standing": ladder(t), "lessons": lessons_for(a, lesson_text)})
+             "path": SCOREBOARD, "standing": ladder(t), "lessons": lessons_for(a, lesson_text), "stale": stale.get(a, "")})
         link("hub", "a:" + a, "hub", 0.45, 150)
 
     for r in rows:

@@ -2,6 +2,8 @@
 
 ## Unreleased: gated point delegation
 
+- A score change now stays visible for 15 minutes: a "+10 now" / "-5 3m" chip next to the runner's score, read from the ledger's own timestamps, so it survives a restart and changes that cancel show as "±0". Before, it was a 1.4 s row flash that was easy to miss.
+- Stale runners fold into one "N stale · names · Show" line at the bottom of the leaderboard and leave the 3D map. A runner is stale when the owner lists it in config `"stale"` (names, or `{"runners": [...], "why": "..."}`), or when it has had no points for `"stale_after_days"` (default 7). A runner that is working right now is never stale, and stale runners never take the top spot or the green tier.
 - New `cb_gate.py`: agents ask the gate for points (`gate claim --job <type> --commit <sha>`), and the gate runs the owner's checks itself on a clean checkout of that commit. It stores the evidence (command, exit code, output hash, artifact hash, commit) and pays only when every required check passes.
 - Score is quality first. Any failed check scores 0. Measured lower token use than the median of earlier passing runs adds at most 30% of base points. Unmeasured usage gets no bonus.
 - Self-awards are capped and rate limited. Peer awards need rank from owner-given points only. Reciprocal and circular awards are blocked. Anything over a cap waits for the owner's click.
