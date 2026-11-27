@@ -91,7 +91,7 @@ class Bridge(unittest.TestCase):
 
     def test_automatic_sessions_are_ignored(self):
         br.handle(created("ses_b1", "health check 23:43"), self.S)
-        br.handle(created("ses_b2", "harp-ai-arbiter (auto-deleted)", "beam-free", {"harp": "ai-arbiter", "ephemeral": True}), self.S)
+        br.handle(created("ses_b2", "auto-arbiter (auto-deleted)", "beam-free", {"app": "arbiter", "ephemeral": True}), self.S)
         for sid in ("ses_b1", "ses_b2"):
             br.handle({"type": "session.execution.started", "data": {"sessionID": sid}}, self.S)
             br.handle({"type": "session.execution.succeeded", "data": {"sessionID": sid}}, self.S)
@@ -99,9 +99,9 @@ class Bridge(unittest.TestCase):
         self.assertEqual(cb_activity.read_asks(TMP), [])
 
     def test_failed_run_goes_idle_without_ask(self):
-        br.handle(created("ses_c1", "big pickle job", "big-pickle"), self.S)
+        br.handle(created("ses_c1", "sample model job", "sample-model"), self.S)
         br.handle({"type": "session.execution.started", "data": {"sessionID": "ses_c1"}}, self.S)
-        self.assertEqual(cb_activity.read(TMP)[0]["agent"], "Big Pickle (OpenCode, server)")
+        self.assertEqual(cb_activity.read(TMP)[0]["agent"], "Sample Model (OpenCode, server)")
         br.handle({"type": "session.execution.failed", "data": {"sessionID": "ses_c1"}}, self.S)
         self.assertFalse(cb_activity.read(TMP)[0]["active"])
         self.assertEqual(cb_activity.read_asks(TMP), [])

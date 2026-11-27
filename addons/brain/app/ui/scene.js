@@ -1,5 +1,5 @@
 // Consequences Brain: 3D "brain in space" score map.
-// Rendering pipeline ported from the HARP Brain view by ARBH Labs (three.js r170):
+// Rendering pipeline ported from an earlier ARBH Labs brain view (three.js r170):
 // same point-sprite node shader (core + gaussian glow + hologram rings on hubs), additive link shader with energy
 // flow, dust field, exp2 fog, UnrealBloom (0.6, 0.5, 0.32) + OutputPass, gimbal rings around the focus.
 // Mapping: core = the Consequences ledger, hubs = agents (size = |net score|, warm = positive, red = negative),
@@ -19,8 +19,10 @@ import { OutputPass } from "./vendor/three-0.170.0/OutputPass.js";
 const QS = new URLSearchParams(location.search);
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const AMBIENT_FPS = Number(QS.get("fps")) || 30; // drift + working pulse whenever visible
-const BG = 0x02060c; // HARP's exact clear colour; through this composer it renders as navy (~22,42,61), measured
-const COL = { pos: "#ffc14d", neg: "#ff5d73", zero: "#8aa0b6", core: "#cff6ff", holo: "#5fe3ff" };
+const LAB = { nosky: QS.has("nosky"), nobloom: QS.has("nobloom") };   // cost experiments only (never set by the app)
+const BG = 0x02060c; // the clear colour; through this composer it renders as navy (~22,42,61), measured
+// the four-step scale, same hex values as index.html: green, yellow, orange, red (best to worst)
+const COL = { green: "#4fe08a", yellow: "#ffe14d", orange: "#ff9f43", red: "#ff5d73", zero: "#8aa0b6", core: "#cff6ff", holo: "#5fe3ff" };
 const GOLDEN = Math.PI * (3 - Math.sqrt(5));
 
 const $ = (id) => document.getElementById(id);
@@ -32,7 +34,7 @@ const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h
 const fmt = (v) => { v = Math.round(Number(v) || 0); return (v > 0 ? "+" : "") + v; };
 const nowS = () => performance.now() / 1000;
 
-// ---------------------------------------------------------------- renderer (HARP settings)
+// ---------------------------------------------------------------- renderer (settings)
 let renderer;
 try {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: "high-performance" });
@@ -68,13 +70,13 @@ const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.6, 0.5, 0.32);
 composer.addPass(bloom);
 composer.addPass(new OutputPass()); // every tier goes through OutputPass so the background tone never changes
 
-// quality tiers: [max DPR, bloom on, bloom res scale] (HARP)
+// quality tiers: [max DPR, bloom on, bloom res scale]
 const TIERS = [[1, false, 0.5], [1, true, 0.6], [1.5, true, 0.75], [2, true, 0.75]];
 let tier = 3;
 const tierStart = tier;
 let downgrades = 0;
 
-// ---------------------------------------------------------------- shaders (HARP + depth of field)
+// ---------------------------------------------------------------- shaders (with depth of field)
 const nodeMat = new THREE.ShaderMaterial({
   uniforms: { uTime: { value: 0 }, uScale: { value: 800 }, uFocus: { value: 1500 } },
   vertexShader: /* glsl */ `
@@ -202,9 +204,9 @@ const skyMat = new THREE.ShaderMaterial({
 const sky = new THREE.Mesh(new THREE.SphereGeometry(10000, 48, 24), skyMat);
 sky.renderOrder = -1;
 sky.frustumCulled = false;
-scene.add(sky);
+if (!LAB.nosky) scene.add(sky);
 
-// dust field (HARP: 1400 points, r 400..3000)
+// dust field (1400 points, r 400..3000)
 let dust;
 {
   const N = 1400, p = new Float32Array(N * 3), s = new Float32Array(N);
@@ -224,7 +226,7 @@ let dust;
   scene.add(dust);
 }
 
-// focus gimbal rings (HARP)
+// focus gimbal rings
 const ringGroup = new THREE.Group();
 {
   const mk = (r, col, dashed) => {
@@ -258,7 +260,7 @@ const S = {
 let nodePts = null, linkSeg = null, orbitSeg = null, parts = null;
 const tmpV = new THREE.Vector3(), tmpC = new THREE.Color();
 
-function colorFor(v) { return v > 0 ? COL.pos : v < 0 ? COL.neg : COL.zero; }
+function colorFor(v) { return v > 0 ? COL.green : v < 0 ? COL.red : COL.zero; }   // one scored event: by sign
 function agentSize(v) { return 26 + Math.sqrt(Math.abs(Number(v) || 0)) * 3.1; }
 function eventSize(v) { return 7 + Math.sqrt(Math.abs(Number(v) || 0)) * 1.25; }
 function spring(x, k, z) { return { x, v: 0, t: x, k, c: 2 * Math.sqrt(k) * (z || 0.82) }; }
@@ -298,7 +300,7 @@ function setData(model) {
       n = { id: a.id, kind: 1, px: spring(first ? 0 : x, 55), py: spring(first ? 0 : y, 55), pz: spring(first ? 0 : z, 55), sz: spring(first ? 0 : agentSize(a.val), 120, 0.6),
             spawn: first ? t + 0.25 + i * 0.07 : (S.first ? -100 : t), changed: S.first ? -100 : t };
     } else if (Number(n.val) !== Number(a.val)) { n.changed = t; n.delta = Number(a.val) - Number(n.val); }
-    n.label = a.label; n.val = Number(a.val) || 0; n.standing = a.standing; n.count = a.count; n.color = colorFor(n.val);
+    n.label = a.label; n.val = Number(a.val) || 0; n.standing = a.standing; n.count = a.count; n.color = COL[a.tier] || colorFor(n.val);
     n.work = working.has(a.id); n.wn = (model.workCount || {})[a.id] || 1; n.ask = asking.has(a.id); n.task = (model.tasks || {})[a.id] || "";
     n.px.t = x; n.py.t = y; n.pz.t = z; n.sz.t = agentSize(n.val);
     nodes.push(n);
@@ -399,7 +401,7 @@ function buildGeometry() {
   scene.add(orbitSeg);
   S.orbitDirty = true;
 
-  // energy particles along the focused agent's links (HARP partMat)
+  // energy particles along the focused agent's links (particle material)
   const P = 160;
   const pg = new THREE.BufferGeometry();
   pg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(P * 3), 3).setUsage(THREE.DynamicDrawUsage));
@@ -626,7 +628,7 @@ function applySize() {
   composer.setSize(w, h);
   const bs = TIERS[tier][2];
   bloom.setSize(Math.max(64, (w * dpr * bs) | 0), Math.max(64, (h * dpr * bs) | 0));
-  bloom.enabled = TIERS[tier][1];
+  bloom.enabled = TIERS[tier][1] && !LAB.nobloom;
   camera.aspect = w / h;
   updateViewOffset();
   const sc = (h * dpr) / (2 * Math.tan((camera.fov * Math.PI) / 360));
@@ -634,7 +636,7 @@ function applySize() {
   S.dpr = dpr;
 }
 
-// ---------------------------------------------------------------- labels (HARP .lbl, no truncation, never on a panel or another label)
+// ---------------------------------------------------------------- labels (no truncation, never on a panel or another label)
 const labelPool = [];
 const labelSize = new Map(); // class|text|maxWidth -> [w, h]: no layout reads per frame
 function panelRects() {
@@ -645,8 +647,16 @@ function project(n) {
   if (tmpV.z > 1) return null;
   return { x: (tmpV.x * 0.5 + 0.5) * innerWidth, y: (-tmpV.y * 0.5 + 0.5) * innerHeight, depth: camera.position.distanceTo(tmpV.set(n.x, n.y, n.z)) };
 }
+function discRadius(n, p) {   // what the eye reads as the node: its outer ring, sized exactly as the vertex shader sizes the sprite
+  const blur = n.kind > 1 ? 0 : Math.min(1, Math.abs(p.depth - S.focusDist) / Math.max(1, S.focusDist) * 1.15);
+  const px = Math.max(0, n.sz.x) * (n.work ? 1.35 * 1.1 : 1) * (1 + blur * 0.55) * nodeMat.uniforms.uScale.value / Math.max(1, p.depth);
+  return Math.max(6, Math.min(340, px) / (S.dpr || 1) * 0.5);
+}
+const hits = (q, bx, by, bw, bh) => bx < q[0] + q[2] && q[0] < bx + bw && by < q[1] + q[3] && q[1] < by + bh;
 function writeLabels() {
-  const f = freeArea(), placed = [];
+  const f = freeArea(), placed = [], discs = [];
+  // a label never sits on another label or on another agent's node: every agent disc is an obstacle
+  for (const n of S.nodes) if (n.kind >= 1) { const p = (n.screen = project(n)); if (p) { const r = Math.min(64, discRadius(n, p) * 0.8); discs.push([p.x - r, p.y - r, 2 * r, 2 * r, n]); } }
   const want = S.nodes.filter((n) => n.kind === 1 || n.id === S.selected || n.id === S.hover)
     .sort((a, b) => (b.id === S.selected) - (a.id === S.selected) || (b.id === S.hover) - (a.id === S.hover) || (!!b.work - !!a.work) || (!!b.ask - !!a.ask) || Math.abs(b.val) - Math.abs(a.val));
   let k = 0;
@@ -654,7 +664,7 @@ function writeLabels() {
     const p = project(n);
     n.screen = p;
     if (!p) continue;
-    const txt = n.kind === 1 ? n.label + "  " + fmt(n.val) + (n.work ? "  · working" + (n.wn > 1 ? " ×" + n.wn : "") : n.ask ? "  · asks for points" : "") : fmt(n.val) + "  " + n.title;
+    const txt = n.kind === 1 ? n.label + "  " + fmt(n.val) + (n.work ? "  · working" + (n.wn > 1 ? " ×" + n.wn : "") : n.ask ? "  · asks" : "") : fmt(n.val) + "  " + n.title;
     if (n.kind === 0 && n.id !== S.selected) continue;            // hover text goes to the tooltip box
     let el = labelPool[k];
     if (!el) { el = document.createElement("div"); labelsEl.appendChild(el); labelPool.push(el); }
@@ -672,23 +682,26 @@ function writeLabels() {
     if (!sz) { sz = [el.offsetWidth, el.offsetHeight]; labelSize.set(key, sz); if (labelSize.size > 600) labelSize.clear(); }
     const lw = sz[0], lh = sz[1];
     if (n.kind === 0 && lh > f.h * 0.3) { el.style.display = "none"; el._tf = ""; continue; }   // long event text: Detail shows it
-    const r = Math.max(6, (n.sz.x * nodeMat.uniforms.uScale.value) / Math.max(1, p.depth) / (S.dpr || 1) * 0.35);
+    const r = n.kind === 1 ? discRadius(n, p) : Math.max(6, (n.sz.x * nodeMat.uniforms.uScale.value) / Math.max(1, p.depth) / (S.dpr || 1) * 0.35);
     let ok = false, x = 0, y = p.y - lh / 2;
     const cx = Math.min(f.x + f.w - 6 - lw, Math.max(f.x + 6, p.x - lw / 2));
-    const cands = [[p.x + r + 4, p.y - lh / 2], [p.x - r - 4 - lw, p.y - lh / 2]];
-    if (prio) {                                                     // working / selected never lose their label
-      const cy = Math.min(f.y + f.h - 6 - lh, Math.max(f.y + 6, p.y + r + 4));
-      cands.push([cx, p.y + r + 4], [cx, p.y - r - 4 - lh], [cx, cy]);
+    const cands = [[p.x + r + 6, p.y - lh / 2], [p.x - r - 6 - lw, p.y - lh / 2], [cx, p.y + r + 5], [cx, p.y - r - 5 - lh]];
+    if (prio) {                                                     // working / selected / asking: also try the area's edge
+      const cy = Math.min(f.y + f.h - 6 - lh, Math.max(f.y + 6, p.y + r + 5));
+      cands.push([cx, cy]);
     }
-    for (const cand of cands) {
-      x = cand[0]; y = cand[1];
-      const bx = x, by = y, bw = lw, bh = lh;
-      if (bx < f.x + 4 || by < f.y + 4 || bx + bw > f.x + f.w - 4 || by + bh > f.y + f.h - 4) continue;
-      if (placed.some((q) => bx < q[0] + q[2] && q[0] < bx + bw && by < q[1] + q[3] && q[1] < by + bh)) continue;
-      ok = true; break;
+    for (let pass = 0; pass < (prio ? 2 : 1) && !ok; pass++) {      // pass 2 (priority labels only): other nodes may be covered, labels never
+      for (const cand of cands) {
+        x = cand[0]; y = cand[1];
+        const bx = x, by = y, bw = lw, bh = lh;
+        if (bx < f.x + 4 || by < f.y + 4 || bx + bw > f.x + f.w - 4 || by + bh > f.y + f.h - 4) continue;
+        if (placed.some((q) => hits(q, bx, by, bw, bh))) continue;
+        if (pass === 0 && discs.some((q) => q[4] !== n && q[4] !== n.agent && hits(q, bx, by, bw, bh))) continue;
+        ok = true; break;
+      }
     }
     if (!ok) { el.style.display = "none"; el._tf = ""; continue; }
-    placed.push([x - 2, y - 2, lw + 4, lh + 4]);
+    placed.push([x - 9, y - 3, lw + 18, lh + 6]);
     const tf = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
     if (el._tf !== tf) { el.style.transform = tf; el._tf = tf; }
     k++;
@@ -741,7 +754,7 @@ function frame(isRaf) {
   busy = stepCam(dt) || busy;
   // slow drift: orbit the camera around its target when nothing else drives it
   if (!cam.active && lastMode === "ambient" && !REDUCED && !S.dragging) {
-    const ang = dt * 0.0367; // HARP autoRotateSpeed 0.35
+    const ang = dt * 0.0367; // autoRotateSpeed 0.35
     tmpV.copy(camera.position).sub(controls.target).applyAxisAngle(THREE.Object3D.DEFAULT_UP, ang);
     camera.position.copy(controls.target).add(tmpV);
   }
@@ -756,6 +769,7 @@ function frame(isRaf) {
   dust.rotation.y = t * 0.006;
   sky.position.copy(camera.position);
   composer.render();
+  if (window.__cbBeat) window.__cbBeat(ts);       // the small "working" dots pulse on this frame: no extra compositor frames
   renders++;
   stats.renders = renders;
   writeLabels();

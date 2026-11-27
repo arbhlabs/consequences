@@ -10,6 +10,7 @@ only when a session's state changes:
   "[Request interrupted by user"                                 -> idle
 A session that stops writing mid-turn expires through the beacon TTL (crash, closed window).
 """
+import datetime
 import json
 import os
 import re
@@ -31,6 +32,14 @@ def _model_name(mid):
     return "%s %s.%s" % (m.group(1).capitalize(), m.group(2), m.group(3)) if m else ""
 
 
+def _when(iso):
+    """Epoch seconds of a transcript record's ISO timestamp (0 if absent or unreadable)."""
+    try:
+        return datetime.datetime.fromisoformat(str(iso).replace("Z", "+00:00")).timestamp()
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _prompt_text(content):
     if isinstance(content, str):
         return content
@@ -42,12 +51,12 @@ def _prompt_text(content):
 
 
 class Session:
-    __slots__ = ("path", "sid", "offset", "state", "model", "task", "cwd", "last_write", "turn", "ask_text")
+    __slots__ = ("path", "sid", "offset", "state", "model", "task", "cwd", "last_write", "turn", "ask_text", "started")
 
     def __init__(self, path):
         self.path, self.sid = path, os.path.splitext(os.path.basename(path))[0]
         self.offset, self.state, self.model, self.task, self.cwd = 0, "", "", "", ""
-        self.last_write, self.turn, self.ask_text = 0.0, "", ""
+        self.last_write, self.turn, self.ask_text, self.started = 0.0, "", "", 0.0
 
     @property
     def agent(self):
@@ -84,12 +93,12 @@ class Session:
                     self.state = "idle"
                     continue
                 self.state = "working"
-                if t:   # a real prompt (not a tool result): becomes the task
-                    t = re.sub(r"<[^>]{1,80}>[^<]{0,200}</[^>]{1,80}>|<[^>]{1,80}>", " ", t)
-                    t = re.sub(r"\s+", " ", t).strip()
-                    if t:
-                        where = os.path.basename((self.cwd or "").rstrip("\\/"))
-                        self.task = ((where + ": ") if where else "") + t[:110]
+                if t:   # a real prompt (not a tool result): becomes the task, and the turn starts here
+                    self.started = _when(r.get("timestamp")) or time.time()
+                    t = cb_activity.clean_task(t)
+                    where = cb_activity.project_name(self.cwd)
+                    if t or where:
+                        self.task = where + (": " if where and t else "") + t
         return ended
 
 
@@ -142,7 +151,8 @@ class ClaudeSessions(threading.Thread):
         if ended and not first and ended != s.turn:
             s.turn = ended
             pts, why = cb_activity.suggestion(s.ask_text)
-            cb_activity.ask_done(s.agent, s.task, s.sid[:12], folder=self.out, key=KEY, points=pts, why=why, turn=ended)
+            cb_activity.ask_done(s.agent, s.task, s.sid[:12], folder=self.out, key=KEY, points=pts, why=why, turn=ended,
+                                 started=s.started or None, project=cb_activity.project_name(s.cwd))
         elif ended:
             s.turn = ended           # history from before the window started: no ask
 

@@ -1,0 +1,38 @@
+{
+  "_comment": "Optional. Claude Code needs no setup because the Brain reads the transcripts it already writes. These hooks only make 'working' and 'done' show up a little faster. Merge the 'hooks' block into ~/.claude/settings.json and replace C:\\path\\to\\consequences with where you cloned the repo.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 5,
+            "command": "python \"C:\\path\\to\\consequences\\addons\\brain\\app\\cb_activity.py\" hook working --agent \"Claude Code\" --ttl 10800"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 5,
+            "command": "python \"C:\\path\\to\\consequences\\addons\\brain\\app\\cb_activity.py\" hook done --agent \"Claude Code\""
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 5,
+            "command": "python \"C:\\path\\to\\consequences\\addons\\brain\\app\\cb_activity.py\" hook end --agent \"Claude Code\""
+          }
+        ]
+      }
+    ]
+  }
+}

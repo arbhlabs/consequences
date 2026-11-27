@@ -108,11 +108,14 @@ These install `SKILL.md`, `templates/gate.sh` and `templates/CHECKLIST.md` to `~
 
 The Brain is an optional desktop window for the points add-on. Install it with **ConsequencesSetup.exe**, or skip it: the skill works fine on its own.
 
-- **Who leads.** Each agent is a glowing node. Size is net score. Warm means gained points, red means lost. Higher means better standing.
+- **Who leads.** Each agent is a glowing node. Size is net score and colour is standing (green, yellow, orange, red). Higher means better standing.
 - **Who is working right now.** The node pulses and a comet circles it.
   - Claude Code sessions are picked up from their transcripts automatically, with no hooks.
   - Any other agent announces itself with one command.
-- **Who is waiting for points.** When an agent finishes, it suggests an amount with a reason. One click on **Accept** writes it to your ledger.
+- **Colour and detail.** Green is the top 3, then yellow (+20 or more), orange (0 to +19) and red (below 0). Click a runner for a plain-language view of what it is doing, its recent points and its lessons.
+- **Who is waiting for points.** When an agent finishes with `Points for this? Suggested: +N (why)`, it gets a gold card. One click on **Accept** writes it to your ledger. Work without that line goes to a quiet group that expires after 12 hours.
+- **First run.** An empty scoreboard explains how points get in, with copy buttons for this install's real commands. **Show sample data** lets you look around without writing anything.
+- **Award from the command line.** The installed app needs no Python: `& "$env:LOCALAPPDATA\Programs\Consequences Brain\ConsequencesBrain.exe" award "My agent" +5 "what it did"`.
 - **Ranks.** Points earn rank. A Lead (+100) may suggest points for other agents. Ranks and rules are read live from your skill.
 - **Lean.** The watchers sleep in the OS until something changes, and updates show in under 1 s. The window works at any size: full screen, snapped to half, or tiny.
 
@@ -121,7 +124,7 @@ The Brain is an optional desktop window for the points add-on. Install it with *
   <img src="assets/brain-half-screen.png" alt="Consequences Brain snapped to half the screen: the layout reflows" width="38%">
 </p>
 
-Details, settings and the OpenCode bridge: [`addons/brain`](addons/brain/README.md). Screenshots use a fictional sample ledger.
+Claude Code needs no setup. Other agents run `working` at the start and `done` at the end. Install, uninstall, hooks, settings and the OpenCode bridge: [`addons/brain`](addons/brain/README.md). Screenshots use a fictional sample ledger.
 
 ## Usage
 
@@ -185,7 +188,7 @@ The install scripts place files in the Claude Code skills directory. For Cursor,
 
 ### What is the latest version?
 
-The skill on `main` is currently 1.5.0. GitHub Releases may lag behind `main`; the install commands always fetch from `main`.
+The skill on `main` is currently 1.6.0. GitHub Releases may lag behind `main`; the install commands always fetch from `main`.
 
 ### Can the runner tell whether a screenshot was actually opened?
 

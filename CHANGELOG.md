@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.6.0
+- **Consequences Brain**: waiting-for-points list is capped. It shows the newest cards that fit (max 4), then one "+N older waiting · Show all" line.
+- A finished-work card only becomes a gold card when the final message ends with `Points for this? Suggested: +N (why)`. Other finished work goes to a collapsed quiet group and expires after 12 hours (suggested asks: 3 days).
+- Cards show the runner under the leaderboard name, the project folder and the agent's own reason. The owner's raw prompt is never a title; attachments, paths and tool markup are stripped.
+- If the award was already given in chat and logged in the ledger during that turn, the card closes by itself.
+- Four-step colour scale in the leaderboard and graph: green (top 3), yellow (+20 or more), orange (0 to +19), red (below 0, even in the top 3). The rule is printed under the leaderboard.
+- Click a runner for a plain-language view: what it is doing now, rank and trend, latest points, lessons that name it in your skill file, and work waiting for points.
+- Graph labels no longer overlap, and the status suffix is shorter ("· asks", "· working").
+- First run: an empty scoreboard explains how points get in (three ways, copy buttons with this install's real commands) and offers "Show sample data" (fictional, this session only, writes nothing).
+- Lower idle cost: the pulse dots were an infinite CSS animation that forced 60 fps compositing. They are now stepped from the 3D frame. Measured in a headless lab (Chromium, 1936x1048 at 1.5 scale, 25 s, two runs each, 16-thread PC): 1.5.0 used 48-59% of one CPU core, 1.6.0 used 34-35%; memory 979-1120 MB became about 904 MB for the lab browser tree. GPU use did not drop in the lab (17-23% before, about 25% after). These are lab figures, not the installed window.
+- New commands: `award "My agent" +5 "what it did" [--why "reason"]`, and `working`, `done`, `idle`, `list`, `claim` pass through to `cb_activity`. The installed app runs them too, with no Python. `--version` prints 1.6.0. `--selftest` never opens a window.
+- Default ledger for a fresh install is `%LOCALAPPDATA%\Consequences\ledger.jsonl`. An existing `%LOCALAPPDATA%\ship-gate\ledger.jsonl` is still used.
+- New headless UI gate: `python addons/brain/tests/ui_gate.py`.
+- Optional Claude Code hooks example: `addons/brain/hooks/claude-code-hooks.example.json`.
+- Rewritten Brain README: install, first run, how points get in, hooking up agents, uninstall, third-party notices.
+
 ## 1.5.0
 - **Consequences Brain** (optional add-on, `addons/brain`): a live 3D desktop window for the points ledger.
   - It shows who leads, who is working right now (Claude Code sessions are detected from their transcripts, other agents push a beacon) and who is waiting for points.

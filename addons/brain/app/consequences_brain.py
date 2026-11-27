@@ -26,6 +26,7 @@ import hashlib
 import threading
 import datetime
 
+VERSION = "1.6.0"
 APP_DIR = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__))
 RES_DIR = getattr(sys, "_MEIPASS", APP_DIR)          # bundled resources (ui/, icon) in the packaged app
 _APPDATA = os.environ.get("APPDATA") or os.path.join(os.path.expanduser("~"), ".config")
@@ -49,7 +50,9 @@ if os.environ.get("CB_VAULT"):                       # tests / explicit override
     SCOREBOARD = os.path.join(os.environ["CB_VAULT"], "Scoreboard.md")
     VAULT = os.environ["CB_VAULT"]
 else:
-    SCOREBOARD = CFG.get("ledger") or os.path.join(os.environ.get("SHIP_GATE_DATA_DIR") or os.path.join(_LOCAL, "ship-gate"), "ledger.jsonl")
+    _legacy = os.path.join(os.environ.get("SHIP_GATE_DATA_DIR") or os.path.join(_LOCAL, "ship-gate"), "ledger.jsonl")
+    SCOREBOARD = CFG.get("ledger") or (_legacy if os.environ.get("SHIP_GATE_DATA_DIR") or os.path.isfile(_legacy)
+                                       else os.path.join(_LOCAL, "Consequences", "ledger.jsonl"))
     VAULT = CFG.get("notes") or os.path.dirname(SCOREBOARD)
 SKILLS_DIR = os.environ.get("CB_SKILLS") or os.path.join(os.path.expanduser("~"), ".claude", "skills")
 BACKUP_DIR = os.environ.get("CB_BACKUPS") or os.path.join(_LOCAL, "Consequences", "backups")
@@ -64,6 +67,8 @@ BRAND = CFG.get("brand", "")
 LEDGER_IS_JSONL = SCOREBOARD.lower().endswith(".jsonl")
 sys.path.insert(0, APP_DIR)
 import cb_activity  # noqa: E402  (who is working now: push beacons, see cb_activity.py)
+import cb_sample    # noqa: E402  (fictional data for "Show sample data"; never written to disk)
+DEMO = {"on": False, "extra": [], "asks": None}   # sample mode: this session only, the real ledger is untouched
 ACTIVITY_DIR = cb_activity.activity_dir()
 # beacons from other machines (e.g. an OpenCode server's bridge) arrive through a synced folder, if configured
 SHARED_ACTIVITY_DIR = os.environ.get("CB_SHARED_ACTIVITY") or CFG.get("shared_activity") or ""
@@ -271,8 +276,72 @@ def parse_ledger_jsonl(text):
 
 
 def read_ledger():
+    if DEMO["on"]:
+        return parse_ledger_jsonl(cb_sample.ledger_text() + "".join(DEMO["extra"]))
     text = _read(SCOREBOARD)
     return parse_ledger_jsonl(text) if LEDGER_IS_JSONL else parse_scoreboard(text)
+
+
+def _row_time(ts):
+    try:
+        return time.mktime(time.strptime(ts, "%Y-%m-%d %H:%M")) if ts and not ts.endswith(" 00:00") else None
+    except ValueError:
+        return None
+
+
+def settle_asks(rows, now=None):
+    """Close asks the owner already answered in the ledger, e.g. an award given in chat that the agent logged itself.
+    Deliberately narrow: the ledger row must be for the same runner, must not be one this window wrote, and must fall
+    inside that ask's last finished turn; if two open asks of that runner fit, neither is closed."""
+    now = time.time() if now is None else now
+    open_asks = {}
+    for folder in ACTIVITY_DIRS.values():
+        for k in cb_activity.read_asks(folder):
+            if k.get("kind") == "claim" or (k.get("by") and k.get("by") != k.get("agent")):
+                continue
+            try:
+                end = float(k.get("ts", 0))
+                start = float(k.get("started") or k.get("since") or end - 20 * 60)
+            except (TypeError, ValueError):
+                continue
+            open_asks.setdefault(canon_agent(k.get("agent", "")), []).append((start, end, folder, k["file"]))
+    closed = 0
+    for r in rows:
+        t = _row_time(r["ts"])
+        if t is None or now - t > cb_activity.ASK_TTL or re.search(r"awarded in the Consequences Brain|\(Consequences Brain\)", r["event"]):
+            continue
+        fit = [a for a in open_asks.get(r["agent"], []) if a[0] - 90 <= t + 59 and t <= a[1] + 120]
+        if len(fit) == 1:
+            try:
+                rec = cb_activity.resolve_ask(fit[0][2], fit[0][3], "awarded", r["pts"])
+                rec["via"] = "ledger"
+                cb_activity._atomic(os.path.join(fit[0][2], fit[0][3]), rec)
+                open_asks[r["agent"]].remove(fit[0])
+                closed += 1
+            except (OSError, ValueError):
+                pass
+    return closed
+
+
+_HOME_NAME = os.path.basename(os.path.expanduser("~").rstrip("\\/")).lower()
+
+
+def ask_view(k):
+    """What a card shows: the runner under the same name as the leaderboard, where it ran, and a clean headline.
+    The agent's own one-line reason is the headline; the owner's raw prompt is never used as a title."""
+    raw = k.get("agent", "")
+    agent = canon_agent(raw) or "UNATTRIBUTED"
+    task = cb_activity.clean_task(k.get("task", ""))
+    project = k.get("project") or ""
+    m = re.match(r"^([\w.\- ]{1,40}):\s*(.*)$", task)
+    if m and (not project or m.group(1) == project):     # older beacons carried "folder: prompt" in one string
+        project, task = project or m.group(1), m.group(2)
+    if project.lower() == _HOME_NAME:
+        project = ""
+    if task.lower() in ("work finished", "working", ""):
+        task = ""
+    via = re.sub(r"\s+", " ", raw).strip()
+    return {"agent": agent, "raw": raw, "via": "" if via.lower() == agent.lower() else via, "project": project, "task": task}
 
 
 def append_ledger(entries):
@@ -372,6 +441,21 @@ def load_skills():
     return items
 
 
+def lessons_for(name, text, limit=4):
+    """Lesson lines that name this runner in the skill file: bullets that say "lesson", or sit under a heading about
+    lessons or lost points. Dated lines come first, newest first."""
+    who = re.compile(r"(?<![\w])%s(?![\w])" % re.escape(name), re.I)
+    found, under = [], False
+    for line in text.splitlines():
+        s = line.strip()
+        if s.startswith("#"):
+            under = bool(re.search(r"lesson|lost points|never repeat|learned", s, re.I))
+        elif (under or re.search(r"\blesson\b", s, re.I)) and re.match(r"(?:[-*]|\d+\.|\()", s) and who.search(s):
+            found.append(re.sub(r"^(?:[-*]|\d+\.)\s*", "", s)[:400])
+    found.sort(key=lambda s: (re.findall(r"20\d\d-\d\d-\d\d", s) or [""])[0], reverse=True)
+    return found[:limit]
+
+
 # ---------------------------------------------------------------- graph
 def build_graph():
     nodes, links, ids = [], [], {}
@@ -394,6 +478,11 @@ def build_graph():
 
     # --- points / strikes
     all_rows = read_ledger()
+    if not DEMO["on"]:
+        try:
+            settle_asks(all_rows)
+        except Exception:
+            pass
     rows = sorted(all_rows, key=lambda r: (r["ts"], r["line"]))[-MAX_POINTS:]
     totals, counts = {}, {}
     for r in all_rows:
@@ -415,8 +504,10 @@ def build_graph():
     # live activity beacons -> scoreboard runner names ("Claude Code (Opus 5.5)" -> "Opus")
     activity = []
     asks = []
-    for where, folder in ACTIVITY_DIRS.items():
-        for k in cb_activity.read_asks(folder):
+    if DEMO["on"] and DEMO["asks"] is None:
+        DEMO["asks"] = cb_sample.asks()
+    for where, folder in ([("sample", None)] if DEMO["on"] else ACTIVITY_DIRS.items()):
+        for k in (DEMO["asks"] if DEMO["on"] else cb_activity.read_asks(folder)):
             if k.get("kind") == "claim":   # take points from the UNATTRIBUTED pool
                 pool = totals.get("UNATTRIBUTED", 0)
                 want = int(k.get("suggested") or 0)
@@ -437,14 +528,16 @@ def build_graph():
                     sug = None
                 else:
                     note = "%s (%s) suggests" % (canon_agent(by), by_rank)
-            asks.append({"agent": canon_agent(k.get("agent", "")) or "UNATTRIBUTED", "raw": k.get("agent", ""),
-                         "task": k.get("task", ""), "ts": k.get("ts", 0), "turns": k.get("turns", 1),
+            asks.append({**ask_view(k), "ts": k.get("ts", 0), "turns": k.get("turns", 1),
                          "suggested": sug, "why": k.get("why", "") if sug is not None else "", "by": by if peer else "",
+                         "quiet": bool(k.get("quiet")) and not peer,
                          "note": note, "dir": where, "file": k.get("file")})
     asks.sort(key=lambda k: -float(k["ts"] or 0))
-    for b in [x for f in ACTIVITY_DIRS.values() for x in cb_activity.read(f)]:  # noqa: E501 (several sessions per runner are counted in the UI)
+    for b in (cb_sample.activity() if DEMO["on"] else [x for f in ACTIVITY_DIRS.values() for x in cb_activity.read(f)]):  # noqa: E501 (several sessions per runner are counted in the UI)
         a = canon_agent(b.get("agent", "")) or "UNATTRIBUTED"
-        activity.append({"agent": a, "raw": b.get("agent", ""), "task": b.get("task", ""), "ts": b.get("ts", 0),
+        v = ask_view(b)
+        activity.append({"agent": a, "raw": b.get("agent", ""), "task": (v["project"] + (": " if v["project"] and v["task"] else "") + v["task"]),
+                         "ts": b.get("ts", 0),
                          "expires": b.get("expires", 0), "active": bool(b.get("active"))})
         if b.get("active"):
             agents.add(a)
@@ -453,14 +546,14 @@ def build_graph():
         if a:
             agents.add(a)
     pools = {a: totals.get(a, 0) for a in sorted(agents) if is_pool(a)}
+    lesson_text = "" if DEMO["on"] else _read(CONSEQ_SKILL)
     for a in sorted(agents):
         if is_pool(a):
             continue
         t = totals.get(a, 0)
         add({"id": "a:" + a, "type": "agent", "label": a, "ts": "", "val": t,
-             "text": "Agent / model: %s\nScore since 2026-11-24 (Scoreboard.md): %+d over %d event(s)\nStanding: %s"
-                     % (a, t, counts.get(a, 0), ladder(t)),
-             "path": SCOREBOARD, "standing": ladder(t)})
+             "text": "Agent / model: %s\nScore: %+d over %d event(s)\nStanding: %s" % (a, t, counts.get(a, 0), ladder(t)),
+             "path": SCOREBOARD, "standing": ladder(t), "lessons": lessons_for(a, lesson_text)})
         link("hub", "a:" + a, "hub", 0.45, 150)
 
     for r in rows:
@@ -584,7 +677,9 @@ def build_graph():
     return {"nodes": nodes, "links": links, "totals": totals, "event_total": len(all_rows),
             "agent_counts": counts, "splits": [["a:" + a, "a:" + b] for a, b in splits],
             "activity": activity, "asks": asks, "now": time.time(),
-            "pools": pools, "net": sum(v for k, v in totals.items() if k != "ALL agents"), "brand": BRAND, "ledger_name": os.path.basename(SCOREBOARD),
+            "pools": pools, "net": sum(v for k, v in totals.items() if k != "ALL agents"), "brand": BRAND,
+            "ledger_name": "sample data" if DEMO["on"] else os.path.basename(SCOREBOARD), "sample": DEMO["on"], "app_version": VERSION,
+            "setup": {"empty": not all_rows and not asks and not activity, "ledger": SCOREBOARD, "cli": cli_prefix()},
             "framework": {"ranks": [{"name": n, "from": f, "perks": pk,
                                      "members": sorted((a for a in totals if not is_pool(a) and ladder(totals[a]) == n),
                                                        key=lambda a: -totals[a])}
@@ -592,6 +687,13 @@ def build_graph():
                           "rules": framework()["rules"], "skill": framework()["skill"]},
             "counts": {t: sum(1 for n in nodes if n["type"] == t) for t in
                        ("agent", "skill", "decision", "point", "strike", "job", "note")}}
+
+
+def cli_prefix():
+    """How this copy of the app is called from a terminal (shown in the window's "how points get in" help)."""
+    if getattr(sys, "frozen", False):
+        return '& "%s"' % sys.executable
+    return 'python "%s"' % os.path.abspath(__file__)
 
 
 def _first_nl(s):
@@ -619,7 +721,7 @@ class State:
                                for e in os.scandir(d) if e.name.endswith(".json")))
         except Exception:
             act = ()
-        return (_sig(SCOREBOARD), _sig(DECISIONS), _sig(STRIKES), _sig(INBOX), _sig(CONSEQ_SKILL), hash(jobs), hash(act))
+        return (_sig(SCOREBOARD), _sig(DECISIONS), _sig(STRIKES), _sig(INBOX), _sig(CONSEQ_SKILL), hash(jobs), hash(act), DEMO["on"])
 
     def refresh(self, force=False):
         s = self.current_sig()
@@ -1010,14 +1112,25 @@ class Api:
         """The owner's click on a points ask: append one row to Scoreboard.md (backup first) and close the ask."""
         try:
             pts = int(points)
-            folder = ACTIVITY_DIRS[where]
             if not pts or abs(pts) > 500:
                 raise ValueError("points out of range")
+            if where == "sample":          # sample mode: show what a click does, write nothing
+                k = next((x for x in (DEMO["asks"] or []) if x.get("file") == name), None)
+                if not DEMO["on"] or not k:
+                    return {"ok": False, "error": "that ask is already closed"}
+                DEMO["asks"].remove(k)
+                DEMO["extra"].append(json.dumps({"timestamp": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()), "agent": k["agent"],
+                                                 "task": k.get("task", "work"), "points": pts, "reason": k.get("why", ""), "source": "sample", "tags": []}) + "\n")
+                STATE.refresh(force=True)
+                return {"ok": True, "row": "sample only: nothing was written", "backup": None}
+            folder = ACTIVITY_DIRS[where]
             ask = cb_activity._load(os.path.join(folder, os.path.basename(name or "")))
             if not ask or ask.get("state") != "open":
                 return {"ok": False, "error": "that ask is already closed"}
             runner = re.sub(r"[|\r\n]+", " ", ask.get("agent") or "UNATTRIBUTED").strip()
-            task = re.sub(r"[|\r\n]+", " / ", ask.get("task") or "work finished").strip()
+            v = ask_view(ask)                  # the ledger gets the agent's own reason, not the owner's raw prompt
+            what = (ask.get("why") or "").strip() or v["task"] or "work finished"
+            task = re.sub(r"[|\r\n]+", " / ", (v["project"] + ": " if v["project"] else "") + what).strip()
             turns = int(ask.get("turns", 1))
             stamp = time.strftime("%Y-%m-%d %H:%M")
             if ask.get("kind") == "claim":   # reattribution: two rows, the pool loses what the runner gains
@@ -1053,11 +1166,44 @@ class Api:
 
     def dismiss_ask(self, where, name):
         try:
+            if where == "sample":
+                DEMO["asks"] = [x for x in (DEMO["asks"] or []) if x.get("file") != name]
+                STATE.refresh(force=True)
+                return {"ok": True}
             cb_activity.resolve_ask(ACTIVITY_DIRS[where], os.path.basename(name or ""), "dismissed")
             STATE.refresh(force=True)
             return {"ok": True}
         except Exception as e:
             return {"ok": False, "error": "%s: %s" % (type(e).__name__, e)}
+
+    def dismiss_quiet(self):
+        """Clear every finished-work card that did not ask for points (one click; nothing is written to the ledger)."""
+        n = 0
+        try:
+            for folder in ACTIVITY_DIRS.values():
+                for k in cb_activity.read_asks(folder):
+                    if k.get("quiet"):
+                        cb_activity.resolve_ask(folder, k["file"], "dismissed")
+                        n += 1
+            STATE.refresh(force=True)
+            return {"ok": True, "cleared": n}
+        except Exception as e:
+            return {"ok": False, "error": "%s: %s" % (type(e).__name__, e)}
+
+    def sample(self, on):
+        """Show fictional sample data (this session only). The real ledger is neither read nor written while it is on."""
+        DEMO.update(on=bool(on), extra=[], asks=None)
+        STATE.refresh(force=True)
+        return {"ok": True, "sample": DEMO["on"]}
+
+    def copy(self, text):
+        """Copy a help command to the clipboard (the page itself has no clipboard permission)."""
+        try:
+            import subprocess
+            subprocess.run(["clip"], input=str(text or "")[:2000].encode("utf-16-le"), check=True, creationflags=0x08000000, timeout=5)
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
 
     def add_note(self, text):
         text = re.sub(r"\s+", " ", (text or "")).strip()[:1000]
@@ -1147,9 +1293,11 @@ def selftest():
     """--selftest: load config + ledger, build the model, print a summary, exit. Never opens a window."""
     STATE.refresh(force=True)
     g = STATE.graph
-    report = json.dumps({"ok": "error" not in g, "ledger": SCOREBOARD, "ledger_format": "jsonl" if LEDGER_IS_JSONL else "markdown",
+    report = json.dumps({"ok": "error" not in g, "version": VERSION, "ledger": SCOREBOARD,
+                      "sample_rows": len(parse_ledger_jsonl(cb_sample.ledger_text())), "ledger_format": "jsonl" if LEDGER_IS_JSONL else "markdown",
                       "runners": sorted(n["label"] for n in g.get("nodes", []) if n.get("type") == "agent"),
                       "events": g.get("event_total", 0), "ui": os.path.isfile(os.path.join(RES_DIR, "ui", "index.html")),
+                      "empty": not g.get("event_total"),
                       "three": os.path.isfile(os.path.join(RES_DIR, "ui", "vendor", "three-0.170.0", "three.module.min.js")),
                       "icon": os.path.isfile(ICON_PATH)})
     if sys.stdout:
@@ -1161,10 +1309,69 @@ def selftest():
     return 0
 
 
+def cli_award(argv):
+    """consequences_brain.py award "Runner" +5 "what it did" [--why "reason"]: one ledger entry, backup first."""
+    import argparse
+    ap = argparse.ArgumentParser(prog="award", description="Add points to the ledger (use a negative number to remove points).")
+    ap.add_argument("runner")
+    ap.add_argument("points", type=lambda s: int(s.replace("+", "").replace("\u2212", "-")))
+    ap.add_argument("task", nargs="?", default="")
+    ap.add_argument("--why", default="")
+    a = ap.parse_args(argv)
+    if not a.points or abs(a.points) > 500:
+        ap.error("points must be between -500 and 500, and not 0")
+    clean = lambda s: re.sub(r"[|\r\n]+", " / ", s or "").strip()   # noqa: E731
+    if not LEDGER_IS_JSONL and not os.path.exists(SCOREBOARD):
+        os.makedirs(os.path.dirname(SCOREBOARD) or ".", exist_ok=True)
+        with open(SCOREBOARD, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("# Scoreboard\n\n| When | Runner | Points | What |\n|---|---|---|---|\n")
+    _bak, lines = append_ledger([(clean(a.runner), a.points, clean(a.task) or "work", clean(a.why))])
+    if sys.stdout:
+        print("%s <- %s" % (SCOREBOARD, lines[0]))
+    return 0
+
+
+def attach_stdio():
+    """The packaged app is a windowed program, so Python starts it with no stdin/stdout. Reconnect the handles the caller
+    passed (a pipe, a file, an agent hook), so command-line use can print its result and hooks can read their input."""
+    if os.name != "nt" or (sys.stdout and sys.stdin and sys.stderr):
+        return
+    import ctypes
+    import msvcrt
+    get = ctypes.windll.kernel32.GetStdHandle
+    get.restype = ctypes.c_void_p
+    for name, number, mode in (("stdin", -10, "r"), ("stdout", -11, "w"), ("stderr", -12, "w")):
+        if getattr(sys, name):
+            continue
+        try:
+            handle = get(number)
+            if handle and handle != ctypes.c_void_p(-1).value:
+                fd = msvcrt.open_osfhandle(handle, os.O_RDONLY if mode == "r" else os.O_APPEND)
+                setattr(sys, name, open(fd, mode, encoding="utf-8", errors="replace", buffering=1, closefd=False))
+                continue
+        except (OSError, ValueError):
+            pass
+        setattr(sys, name, open(os.devnull, mode, encoding="utf-8"))
+
+
 def main():
     global WATCHER
+    if len(sys.argv) > 1 and sys.argv[1] in ("--version", "working", "done", "idle", "list", "claim", "hook", "award"):
+        attach_stdio()
+    if "--version" in sys.argv:
+        if sys.stdout:
+            print(VERSION, flush=True)
+        os._exit(0)
     if "--selftest" in sys.argv:
         os._exit(selftest())
+    if len(sys.argv) > 1 and sys.argv[1] in ("working", "done", "idle", "list", "claim", "hook"):
+        code = cb_activity.main(sys.argv[1:]) or 0        # the installed app doubles as the beacon command (no Python needed)
+        sys.stdout and sys.stdout.flush()
+        os._exit(code)
+    if len(sys.argv) > 1 and sys.argv[1] == "award":
+        code = cli_award(sys.argv[2:])
+        sys.stdout and sys.stdout.flush()
+        os._exit(code)
     if "--after" in sys.argv:   # in-place restart: wait for the old window's process to finish, then take over
         try:
             wait_for_exit(int(sys.argv[sys.argv.index("--after") + 1]))

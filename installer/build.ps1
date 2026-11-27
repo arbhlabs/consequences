@@ -14,7 +14,7 @@ Write-Host '[1/4] Building the Consequences Brain app (PyInstaller)...'
 & $Python -m PyInstaller --noconfirm --windowed --name ConsequencesBrain `
     --icon (Join-Path $app 'consequences.ico') `
     --add-data ((Join-Path $app 'ui') + ';ui') --add-data ((Join-Path $app 'consequences.ico') + ';.') `
-    --hidden-import cb_sessions --hidden-import cb_activity --collect-submodules webview `
+    --hidden-import cb_sessions --hidden-import cb_activity --hidden-import cb_sample --collect-submodules webview `
     --distpath (Join-Path $work 'dist') --workpath (Join-Path $work 'pyi') --specpath $work `
     (Join-Path $app 'consequences_brain.py')
 if ($LASTEXITCODE) { throw 'PyInstaller failed' }

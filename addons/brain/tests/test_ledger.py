@@ -62,7 +62,7 @@ class Ledger(unittest.TestCase):
         self.assertTrue(r["ok"], r)
         with open(LEDGER, encoding="utf-8") as f:
             last = json.loads(f.read().splitlines()[-1])
-        self.assertEqual((last["agent"], last["points"], last["task"], last["source"], last["tags"]), ("Codex", 5, "api fix", "owner", []))
+        self.assertEqual((last["agent"], last["points"], last["task"], last["source"], last["tags"]), ("Codex", 5, "tests green", "owner", []))   # the agent's own reason is the ledger task, not the raw task line
         self.assertTrue(last["timestamp"].endswith("Z"))
         self.assertEqual(self.graph()["totals"]["Codex"], 2)
         self.assertTrue(os.listdir(os.path.join(TMP, "bak")), "ledger backed up before writing")

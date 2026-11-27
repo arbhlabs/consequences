@@ -7,8 +7,9 @@ Consequences Brain window wakes on the OS change notification for that folder an
 expires on its own after `ttl` seconds, so a crashed agent never stays "working" forever.
 
 Finishing work raises a points ask ("ask--*.json", one open ask per session, latest task). The window shows it until
-The owner awards points or dismisses it, so finished work is never forgotten. Agents ask for a verdict; they never name or
-claim an amount (see the consequences skill).
+the owner awards points or dismisses it, so finished work is never forgotten. An agent that ends its final message with
+"Points for this? Suggested: +N (why)" gets a gold card with a one-click Accept; work that finished without that line is
+kept in a quiet group (it never crowds the list) and expires after 12 hours. The owner decides; a suggestion is never a claim.
 
 Folders: local = $CB_ACTIVITY, else %LOCALAPPDATA%/Consequences/activity (Windows) or ~/.consequences/activity.
 Shared (other machines, e.g. a synced folder) = $CB_SHARED_ACTIVITY or the window's config "shared_activity".
@@ -30,7 +31,9 @@ import sys
 import time
 
 DEFAULT_TTL = 20 * 60  # a heartbeat older than this counts as idle
-ASK_TTL = 3 * 24 * 3600  # an unanswered ask stays visible for 3 days
+ASK_TTL = 3 * 24 * 3600  # an unanswered ask with a suggested amount stays visible for 3 days
+QUIET_TTL = 12 * 3600    # finished work that did not ask for points: 12 hours, then it is gone
+TASK_CAP = 110
 
 
 def activity_dir():
@@ -58,6 +61,32 @@ def _load(path):
             return json.load(f)
     except (OSError, ValueError):
         return None
+
+
+_NOISE_RX = re.compile(
+    r"\[(?:Image|Pasted|Attachment|File)[^\]]{0,400}(?:\]|$)"      # "[Image: source: C:\...]" attachments (even cut off)
+    r"|<[^>]{1,80}>[^<]{0,2000}</[^>]{1,80}>|<[^>]{1,200}>|<[a-zA-Z/!][^>]*$"   # markup blocks injected by tools
+    r"|(?:[A-Za-z]:\\|\\\\|~/|/(?:home|Users|tmp|var|mnt)/)[^\s\"'<>|)]*", re.I)   # file paths
+
+
+def clean_task(text, cap=TASK_CAP):
+    """A prompt or task line made fit to show: attachments, tool markup and file paths removed, one line, capped."""
+    t = _NOISE_RX.sub(" ", str(text or ""))
+    t = re.sub(r"\(\s*\)", " ", t)
+    t = re.sub(r"\s+", " ", t).strip(" :-|")
+    if re.fullmatch(r"(?:another|a|the)?\s*\w*\s*session sent (?:you )?a message", t, re.I):
+        t = ""                                  # nothing left but the wrapper of a relayed message
+    if len(t) > cap:
+        t = t[:cap].rsplit(" ", 1)[0].rstrip(" ,;:.") + "\u2026"
+    return t
+
+
+def project_name(cwd):
+    """The project a session works in: its folder name, unless that is just the user's home folder."""
+    cwd = (cwd or "").rstrip("\\/")
+    if not cwd or os.path.normcase(cwd) == os.path.normcase(os.path.expanduser("~").rstrip("\\/")):
+        return ""
+    return os.path.basename(cwd)[:60]
 
 
 def beacon_path(agent, session="", folder=None, key=None):
@@ -94,9 +123,12 @@ def suggestion(text):
     return (max(-500, min(500, n)) or None), (m.group(2) or "").strip()
 
 
-def ask_done(agent, task="", session="", folder=None, key=None, points=None, why="", by=None, turn=None):
+def ask_done(agent, task="", session="", folder=None, key=None, points=None, why="", by=None, turn=None, started=None,
+             project=""):
     """Raise (or refresh) the one open points ask for this session. points/why = the agent's suggested amount;
-    by = who suggests (default: the agent itself; a promoted agent may suggest for another agent)."""
+    by = who suggests (default: the agent itself; a promoted agent may suggest for another agent).
+    started = when the finished turn began; "since" keeps the start of the first unanswered turn, so the window can
+    tell that the owner already scored this work in the ledger (an award typed in chat) and close the ask itself."""
     folder = folder or activity_dir()
     os.makedirs(folder, exist_ok=True)
     by = (by or agent)[:80]
@@ -108,8 +140,12 @@ def ask_done(agent, task="", session="", folder=None, key=None, points=None, why
     if turn and old.get("turn") == turn:      # this finished turn already raised its ask
         return path
     reopen = old.get("state") in ("awarded", "dismissed")
+    now = time.time()
+    fresh = reopen or not old or not old.get("since")
     rec = {"agent": agent[:80], "by": by, "turn": turn or old.get("turn"), "task": (task or old.get("task") or "work finished")[:160], "session": (session or "")[:40],
-           "ts": round(time.time(), 3), "state": "open",
+           "project": (project or old.get("project") or "")[:60],
+           "ts": round(now, 3), "state": "open", "since": round(float(started or now) if fresh else float(old["since"]), 3),
+           "started": round(float(started or now), 3),
            "turns": 1 if (reopen or not old) else int(old.get("turns", 1)) + 1,
            "suggested": int(points) if points not in (None, "") else (None if reopen else old.get("suggested")),
            "why": (why or ("" if reopen else old.get("why", "")))[:160]}
@@ -168,8 +204,13 @@ def read(folder=None, now=None):
     return out
 
 
+def is_quiet(rec):
+    """Finished work that did not suggest an amount (and is not a pool claim)."""
+    return rec.get("suggested") is None and rec.get("kind") != "claim"
+
+
 def read_asks(folder=None, now=None):
-    """Open points asks, newest first."""
+    """Open points asks, newest first. Quiet asks (no suggested amount) live 12 hours, the others 3 days."""
     folder = folder or activity_dir()
     now = time.time() if now is None else now
     out = []
@@ -181,8 +222,14 @@ def read_asks(folder=None, now=None):
         if not (e.name.startswith("ask--") and e.name.endswith(".json")):
             continue
         r = _load(e.path)
-        if isinstance(r, dict) and r.get("state") == "open" and now - float(r.get("ts", 0)) < ASK_TTL:
-            r["file"] = e.name
+        if not isinstance(r, dict) or r.get("state") != "open":
+            continue
+        try:
+            age = now - float(r.get("ts", 0))
+        except (TypeError, ValueError):
+            continue
+        if age < (QUIET_TTL if is_quiet(r) else ASK_TTL):
+            r["file"], r["quiet"] = e.name, is_quiet(r)
             out.append(r)
     out.sort(key=lambda r: -float(r.get("ts", 0)))
     return out
@@ -198,7 +245,7 @@ def prune(folder=None, older_than=24 * 3600):
         age = now - e.stat().st_mtime
         if e.name.startswith("ask--"):
             r = _load(e.path) or {}
-            if (r.get("state") != "open" and age > older_than) or age > ASK_TTL:
+            if (r.get("state") != "open" and age > older_than) or age > (QUIET_TTL if is_quiet(r) else ASK_TTL):
                 _rm(e.path)
         elif age > older_than:
             _rm(e.path)
@@ -264,11 +311,9 @@ def _hook_agent(base, payload):
 
 
 def _hook_task(payload):
-    cwd = payload.get("cwd") or ""
-    prompt = re.sub(r"<[^>]{1,80}>[^<]{0,200}</[^>]{1,80}>|<[^>]{1,80}>", " ", str(payload.get("prompt") or ""))  # drop markup
-    prompt = re.sub(r"\s+", " ", prompt).strip()
-    where = os.path.basename(cwd.rstrip("\\/")) if cwd else ""
-    return (where + (": " if where and prompt else "") + prompt[:90]).strip() or "working"
+    where = project_name(payload.get("cwd"))
+    prompt = clean_task(payload.get("prompt"), 90)
+    return (where + (": " if where and prompt else "") + prompt).strip() or "working"
 
 
 def main(argv=None):
@@ -309,7 +354,8 @@ def main(argv=None):
                 old = _load(beacon_path(agent, sess, key=key)) or {}
                 write(agent, "idle", "", sess, a.ttl, key=key)
                 pts, why = _suggestion_from_transcript(payload.get("transcript_path") or "") if payload.get("transcript_path") else (None, "")
-                ask_done(agent, old.get("task", ""), sess, key=key, points=pts, why=why)
+                ask_done(agent, old.get("task", ""), sess, key=key, points=pts, why=why, project=project_name(payload.get("cwd")),
+                         started=old.get("ts") if old.get("state") == "working" else None)
             elif state == "end":    # session closed: stop "working", keep any open ask
                 old = _load(beacon_path(agent, sess, key=key)) or {}
                 if old.get("state") == "working":

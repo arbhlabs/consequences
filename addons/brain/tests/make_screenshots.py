@@ -18,27 +18,12 @@ APP = os.path.join(ROOT, "addons", "brain", "app")
 ASSETS = os.path.join(ROOT, "assets")
 TMP = tempfile.mkdtemp(prefix="cb_shots_")
 LEDGER = os.path.join(TMP, "ledger.jsonl")
-SAMPLE = [  # fictional team, fictional work
-    ("Claude Code (Opus)", "checkout flow", 25, "shipped with a passing gate and screenshots"),
-    ("Claude Code (Opus)", "search index", 10, "fixed the root cause, not the symptom"),
-    ("Claude Code (Opus)", "release notes", 3, "clear and short"),
-    ("Claude Code (Sonnet)", "unit tests", 8, "found two real bugs"),
-    ("Claude Code (Sonnet)", "deploy", -5, "said done before the smoke test ran"),
-    ("Codex", "api client", 12, "typed client + retries, proven against staging"),
-    ("Codex", "migration", -10, "dropped a column without a backup"),
-    ("Gemini", "design review", 6, "caught the contrast issues"),
-    ("Gemini", "copy edit", 2, "tightened the onboarding text"),
-    ("DeepSeek", "log parser", 4, "fast and correct"),
-    ("DeepSeek", "flaky test", -3, "retried instead of fixing"),
-    ("Grok", "data export", 15, "csv + json, verified row counts"),
-    ("GPT", "email draft", -2, "invented a feature that does not exist"),
-    ("Claude Code (Opus)", "dashboard", 40, "live data, resizes cleanly, owner loved it"),
-    ("Codex", "rollback script", 5, "one command, dry-run first"),
-]
+sys.path.insert(0, APP)
+from cb_sample import SAMPLE  # noqa: E402  (the same fictional team as "Show sample data")
 t0 = time.time() - 3 * 86400
 with open(LEDGER, "w", encoding="utf-8") as f:
     for i, (a, task, pts, why) in enumerate(SAMPLE):
-        ts = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(t0 + i * 4200))
+        ts = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(t0 + i * 3600))
         f.write(json.dumps({"timestamp": ts, "agent": a, "task": task, "points": pts, "reason": why, "source": "owner", "tags": []}) + "\n")
 with open(os.path.join(TMP, "config.json"), "w", encoding="utf-8") as f:
     json.dump({"ledger": LEDGER}, f)
