@@ -29,7 +29,8 @@ with open(LEDGER, "w", encoding="utf-8") as f:
 with open(CONFIG, "w", encoding="utf-8") as f:
     json.dump({"ledger": LEDGER, "runners": [{"name": "Riley", "match": "\\briley\\b"}]}, f)
 os.environ.update(CB_CONFIG=CONFIG, CB_ACTIVITY=os.path.join(TMP, "activity"), CB_BACKUPS=os.path.join(TMP, "bak"),
-                  CB_SKILLS=os.path.join(TMP, "skills"), CB_NO_SESSIONS="1", CB_SHARED_ACTIVITY="")
+                  CB_SKILLS=os.path.join(TMP, "skills"), CB_NO_SESSIONS="1", CB_SHARED_ACTIVITY="",
+                  CB_GATE=os.path.join(TMP, "gate"))
 sys.path.insert(0, APP)
 import cb_activity  # noqa: E402
 import consequences_brain as cb  # noqa: E402

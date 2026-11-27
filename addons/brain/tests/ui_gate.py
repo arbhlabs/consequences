@@ -12,6 +12,7 @@ Checks, at 1920x1080, 1280x720, half screen, a small window and the minimum wind
   * every visible control works (rows, tabs, feed, Ask, Accept, Dismiss, Show all, Clear, sample data, copy)
   * first run: an empty scoreboard explains how points get in and offers sample data that writes nothing
   * idle: no CSS animation left running
+  * gate: the gate line, plain-words decisions, two-click go-live, Approve / Decline a waiting award, Revert
 
 --config/--readonly runs the layout checks against your own ledger without clicking anything that writes.
 Fixture data is fictional. Exit code 0 = every check passed.
@@ -60,7 +61,7 @@ else:
                                  "points": pts, "reason": why, "source": "owner", "tags": []}) + "\n")
 json.dump(cfg, open(os.path.join(TMP, "config.json"), "w", encoding="utf-8"))
 os.environ.update(CB_CONFIG=os.path.join(TMP, "config.json"), CB_ACTIVITY=ACT, CB_SHARED_ACTIVITY="", CB_BACKUPS=os.path.join(TMP, "bak"),
-                  CB_NO_SESSIONS="1")
+                  CB_NO_SESSIONS="1", CB_GATE=os.path.join(TMP, "gate"))
 if not ARGS.config:
     os.environ["CB_SKILLS"] = os.path.join(TMP, "skills")
     os.makedirs(os.path.join(TMP, "skills", "consequences"))
@@ -102,7 +103,7 @@ LAYOUT_JS = r"""() => {
   for (let i = 0; i < panels.length; i++) for (let j = i + 1; j < panels.length; j++) { const a = R(panels[i]), b = R(panels[j]);
     if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1) out.overlap.push(panels[i].dataset.panel + '/' + panels[j].dataset.panel); }
   const sel = '.brand h1,.brand p,.stat b,.stat span,.stamp,.work-pill,.ask-pill,.panel-head h2,.panel-head span,.row .name,.row .standing,.row .score,.rank,.tabs button,.mtabs button,' +
-              '.ask-card,.ask-card button,.ask-more,.ask-more button,.feed-row,.tl-item,.rank-row,#detail-title,.kicker,.meta,.bigscore,.ask input,.ask button,#ask-answer,.onboard,.onboard code,.onboard button,.sample-tag,.hint,.panel-foot,.more';
+              '.ask-card,.ask-card button,.ask-more,.ask-more button,.feed-row,.tl-item,.rank-row,#detail-title,.kicker,.meta,.bigscore,.ask input,.ask button,#ask-answer,.onboard,.onboard code,.onboard button,.sample-tag,.hint,.panel-foot,.more,.gate-card,.gate-card button';
   document.querySelectorAll(sel).forEach((e) => { if (!vis(e)) return;
     const r = R(e), box = e.closest('[data-panel]') || document.body, b = R(box), cs = getComputedStyle(e);
     if (e.scrollWidth > e.clientWidth + 1 && cs.overflowX !== 'visible' && !e.classList.contains('onboard')) out.clipped.push((e.id || e.className) + ': ' + e.textContent.trim().slice(0, 40));
@@ -152,7 +153,8 @@ def main():
     httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Quiet, directory=os.path.join(APP, "ui")))
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     url = "http://127.0.0.1:%d/index.html" % httpd.server_address[1]
-    names = ["data", "stats", "award", "dismiss_ask", "dismiss_quiet", "sample", "copy", "ask", "add_note", "open_path"]
+    names = ["data", "stats", "award", "dismiss_ask", "dismiss_quiet", "sample", "copy", "ask", "add_note", "open_path",
+             "gate_approve_checks", "gate_mode", "gate_revert", "gate_decide"]
     if ARGS.shots:
         os.makedirs(ARGS.shots, exist_ok=True)
     gl = os.environ.get("CB_GATE_GL", "d3d11")
@@ -221,6 +223,7 @@ def main():
             p.close()
 
         if not ARGS.readonly:
+            gate_view(page, layout)
             first_run(page, layout, copied)
         b.close()
     httpd.shutdown()
@@ -386,6 +389,93 @@ def controls(p, scene_ok):
     if scene_ok:
         st = p.evaluate("window.CBScene.stats()")
         check("3D scene is rendering", st["renders"] > 10 and st["nodes"] > 5, st)
+
+
+def gate_view(page, layout):
+    """Gated point delegation in the window: a fixture repo, the owner's checks, real gate decisions."""
+    import subprocess
+    import cb_gate
+    nw = 0x08000000 if os.name == "nt" else 0
+    repo = os.path.join(TMP, "gate-repo")
+    os.makedirs(os.path.join(repo, "tests"))
+    git = lambda *a: subprocess.run(["git", "-C", repo, "-c", "user.name=T", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", *a],  # noqa: E731
+                                    capture_output=True, text=True, check=True, creationflags=nw).stdout.strip()
+
+    def commit(app, msg):
+        open(os.path.join(repo, "app.txt"), "w").write(app)
+        git("add", "-A")
+        git("commit", "-q", "-m", msg + "\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@example.invalid>")
+        return git("rev-parse", "HEAD")
+    git("init", "-q")
+    open(os.path.join(repo, "tests", "check.py"), "w").write("import sys\nsys.exit(0 if open('app.txt').read()=='good' else 1)\n")
+    c1 = commit("good", "first")
+    c2 = commit("bad", "second")
+    cb_gate._atomic_json(os.path.join(cb_gate.gate_dir(), "checks.json"), {"jobs": {"demo": {
+        "repo": repo, "base": 5, "pinned": ["tests"], "checks": [{"name": "unit", "run": ["{python}", "tests/check.py"]}]}}})
+    cb_gate.claim("demo", c1)          # unsealed: blocked, the window says why
+    cb.STATE.refresh(force=True)
+    p = page(1920, 1080)
+    T = "window.__cbTest"
+    line = p.evaluate(T + ".gateView()")["line"] or ""
+    check("gate: line shows dry-run and that the checks are not approved", "dry-run" in line and "not approved" in line, line)
+    p.click("[data-gate-toggle]")
+    p.click("[data-gate-approve]")
+    p.wait_for_timeout(200)
+    check("gate: Approve checks needs a second click", "click again" in p.inner_text(".gate-ctl").lower(), p.inner_text(".gate-ctl"))
+    p.click("[data-gate-approve]")
+    p.wait_for_timeout(900)
+    check("gate: Approve checks seals them", cb_gate.seal_state()["ok"] and "checks approved" in (p.evaluate(T + ".gateView()")["line"] or ""))
+    led = open(LEDGER, encoding="utf-8").read()
+    for c in (c1, c2):
+        cb_gate.claim("demo", c)
+    cb.STATE.refresh(force=True)
+    p.evaluate("window.__cbChanged(-10)")
+    p.wait_for_timeout(900)
+    gv = p.evaluate(T + ".gateView()")
+    text = " ".join(gv["cards"])
+    check("gate: dry-run decisions explained in plain words, nothing written",
+          "would give +5 to Sonnet: 1/1 checks passed (unit)" in text and "'unit' failed (exit 1)" in text and open(LEDGER, encoding="utf-8").read() == led, gv["cards"][:3])
+    layout(p, "gate open 1920x1080")
+    p.click("[data-gate-mode]")
+    p.click("[data-gate-mode]")
+    p.wait_for_timeout(900)
+    check("gate: two clicks on Go live switch the gate live", cb_gate.window_view()["mode"] == "live", cb_gate.window_view()["mode"])
+    pol = cb_gate.load_policy()
+    pol["self_cap"] = 3
+    cb_gate._atomic_json(os.path.join(cb_gate.gate_dir(), "policy.json"), pol)
+    cb_gate.owner_approve()
+    c3 = commit("good", "third")
+    d = cb_gate.claim("demo", c3)
+    cb.STATE.refresh(force=True)
+    p.click("[data-gate-toggle]")      # collapse: a waiting award still shows
+    p.evaluate("window.__cbChanged(-11)")
+    p.wait_for_timeout(900)
+    gv = p.evaluate(T + ".gateView()")
+    check("gate: an over-cap award waits as a card even with the gate list closed", d["status"] == "waiting" and len(gv["cards"]) == 1 and "Waits for your click" in gv["cards"][0], gv)
+    n = len(open(LEDGER, encoding="utf-8").read().splitlines())
+    p.click("[data-gate-decide='1']")
+    p.wait_for_timeout(900)
+    rows = open(LEDGER, encoding="utf-8").read().splitlines()
+    check("gate: Approve writes one marked ledger entry", len(rows) == n + 1 and "[gate approved %s]" % d["id"] in rows[-1], rows[-1:])
+    p.click("[data-gate-toggle]")
+    p.wait_for_timeout(300)
+    p.click("[data-gate-revert]")
+    p.wait_for_timeout(900)
+    rows = open(LEDGER, encoding="utf-8").read().splitlines()
+    check("gate: Revert writes the counter-entry", len(rows) == n + 2 and json.loads(rows[-1])["points"] == -5, rows[-1:])
+    ev = p.evaluate(T + ".gateView()")["ev"] or ""
+    check("gate: owner actions are listed with their time", "reverted award" in ev and "checks approved" in ev and "switched to live" in ev, ev)
+    check("gate: no script errors and no failed clicks", not p.errs and not p.evaluate(T + ".gateView()")["errors"], p.errs[:2])
+    p.close()
+    p = page(520, 420)
+    p.click('#mtabs [data-m="feed"]')
+    p.click("[data-gate-toggle]")
+    p.wait_for_timeout(300)
+    layout(p, "gate open 520x420 feed")
+    p.close()
+    for n_ in ("seal.json", "policy.json", "checks.json", "gate.jsonl"):
+        os.remove(os.path.join(cb_gate.gate_dir(), n_))
+    cb.STATE.refresh(force=True)
 
 
 def first_run(page, layout, copied):

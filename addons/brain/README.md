@@ -163,6 +163,12 @@ All settings live in `%APPDATA%\Consequences\config.json`, or in `config.json` n
    - `%APPDATA%\Consequences\config.json`
    - `%USERPROFILE%\.claude\skills\ship-gate` and `%USERPROFILE%\.claude\skills\consequences-points` (the skills)
 
+## Gated points (optional)
+
+Agents can earn points without waiting for you, but only when your own checks pass. Define job types in `%LOCALAPPDATA%\Consequences\gate\checks.json`: a repo, check commands, pinned test paths and base points. Then click **Feed > Gate > Show > Approve checks** in the window.
+
+An agent claims with `cb_gate.py claim --job <type> --commit <sha>`, and the optional Stop hook `cb_gate.py hook` does it automatically. The gate runs the checks on a clean checkout and stores the evidence. It starts in dry-run, so nothing is written until you click **Go live**. Caps, rank rules, revert and clawback are described in `docs/gated-delegation.md`.
+
 ## Tests
 
 ```

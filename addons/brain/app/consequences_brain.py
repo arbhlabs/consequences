@@ -68,6 +68,7 @@ LEDGER_IS_JSONL = SCOREBOARD.lower().endswith(".jsonl")
 sys.path.insert(0, APP_DIR)
 import cb_activity  # noqa: E402  (who is working now: push beacons, see cb_activity.py)
 import cb_sample    # noqa: E402  (fictional data for "Show sample data"; never written to disk)
+import cb_gate      # noqa: E402  (gated point delegation: checks the owner defined, run by the gate itself)
 DEMO = {"on": False, "extra": [], "asks": None}   # sample mode: this session only, the real ledger is untouched
 ACTIVITY_DIR = cb_activity.activity_dir()
 # beacons from other machines (e.g. an OpenCode server's bridge) arrive through a synced folder, if configured
@@ -308,7 +309,8 @@ def settle_asks(rows, now=None):
     closed = 0
     for r in rows:
         t = _row_time(r["ts"])
-        if t is None or now - t > cb_activity.ASK_TTL or re.search(r"awarded in the Consequences Brain|\(Consequences Brain\)", r["event"]):
+        if t is None or now - t > cb_activity.ASK_TTL or re.search(r"awarded in the Consequences Brain|\(Consequences Brain\)", r["event"]) \
+                or cb_gate.GATE_MARK.search(r["event"]):   # a gate award never closes (or doubles) the owner's open ask
             continue
         fit = [a for a in open_asks.get(r["agent"], []) if a[0] - 90 <= t + 59 and t <= a[1] + 120]
         if len(fit) == 1:
@@ -517,6 +519,17 @@ def lessons_for(name, text, limit=4):
 
 
 # ---------------------------------------------------------------- graph
+def _gate_view():
+    """The gate's mode, seal and recent decisions for the window (never in sample mode, never fatal)."""
+    if DEMO["on"]:
+        return None
+    try:
+        return cb_gate.window_view()
+    except Exception as e:   # a broken gate file must not take the window down
+        return {"configured": True, "mode": "dry-run", "seal": {"ok": False, "reason": "gate unreadable: %s" % type(e).__name__},
+                "jobs": [], "items": [], "waiting": 0}
+
+
 def build_graph():
     nodes, links, ids = [], [], {}
 
@@ -736,7 +749,7 @@ def build_graph():
     splits = sorted({(a, b) for g in shared.values() for a in g for b in g if a < b})
     return {"nodes": nodes, "links": links, "totals": totals, "event_total": len(all_rows),
             "agent_counts": counts, "splits": [["a:" + a, "a:" + b] for a, b in splits],
-            "activity": activity, "asks": asks, "now": time.time(),
+            "activity": activity, "asks": asks, "now": time.time(), "gate": _gate_view(),
             "pools": pools, "experience": experience(rows), "net": sum(v for k, v in totals.items() if k != "ALL agents"), "brand": BRAND,
             "ledger_name": "sample data" if DEMO["on"] else os.path.basename(SCOREBOARD), "sample": DEMO["on"], "app_version": VERSION,
             "setup": {"empty": not all_rows and not asks and not activity, "ledger": SCOREBOARD, "cli": cli_prefix()},
@@ -781,7 +794,8 @@ class State:
                                for e in os.scandir(d) if e.name.endswith(".json")))
         except Exception:
             act = ()
-        return (_sig(SCOREBOARD), _sig(DECISIONS), _sig(STRIKES), _sig(INBOX), _sig(CONSEQ_SKILL), hash(jobs), hash(act), DEMO["on"])
+        gate = tuple(_sig(os.path.join(cb_gate.gate_dir(), n)) for n in ("gate.jsonl", "checks.json", "policy.json", "seal.json"))
+        return (_sig(SCOREBOARD), _sig(DECISIONS), _sig(STRIKES), _sig(INBOX), _sig(CONSEQ_SKILL), hash(jobs), hash(act), gate, DEMO["on"])
 
     def refresh(self, force=False):
         s = self.current_sig()
@@ -808,7 +822,7 @@ STATE = State()
 # ---------------------------------------------------------------- update in place
 UI_DIR = os.environ.get("CB_UI_DIR") or os.path.join(APP_DIR, "ui")          # tests point these at temp copies
 CODE_FILES = os.environ["CB_CODE_FILES"].split(os.pathsep) if os.environ.get("CB_CODE_FILES") else [
-    os.path.join(APP_DIR, "consequences_brain.py"), os.path.join(APP_DIR, "cb_activity.py")]
+    os.path.join(APP_DIR, "consequences_brain.py"), os.path.join(APP_DIR, "cb_activity.py"), os.path.join(APP_DIR, "cb_gate.py")]
 STATE_FILE = os.path.join(os.path.dirname(cb_activity.activity_dir()), "window.json")
 
 
@@ -842,7 +856,7 @@ class Watcher(threading.Thread):
         super().__init__(name="cb-watcher", daemon=True)
         self.state, self.on_change, self.on_code = state, on_change, on_code
         self._ui, self._code = ui_sig(), code_sig()
-        self.dirs = dirs or [VAULT, JOBS_DIR, os.path.dirname(CONSEQ_SKILL), ACTIVITY_DIR, SHARED_ACTIVITY_DIR] + (
+        self.dirs = dirs or [VAULT, JOBS_DIR, os.path.dirname(CONSEQ_SKILL), ACTIVITY_DIR, SHARED_ACTIVITY_DIR, cb_gate.gate_dir()] + (
             [UI_DIR] + sorted({os.path.dirname(f) for f in CODE_FILES}) if on_code else [])
         self.debounce, self.max_wait = debounce, max_wait
         self.wakeups = self.refreshes = 0
@@ -1192,37 +1206,50 @@ class Api:
             what = (ask.get("why") or "").strip() or v["task"] or "work finished"
             task = re.sub(r"[|\r\n]+", " / ", (v["project"] + ": " if v["project"] else "") + what).strip()
             turns = int(ask.get("turns", 1))
-            stamp = time.strftime("%Y-%m-%d %H:%M")
             if ask.get("kind") == "claim":   # reattribution: two rows, the pool loses what the runner gains
                 pool = sum(r["eff"] for r in read_ledger() if r["agent"] == "UNATTRIBUTED")
                 if pts <= 0 or pts > pool:
                     return {"ok": False, "error": "the UNATTRIBUTED pool holds %+d" % pool}
                 why = re.sub(r"[|\r\n]+", " / ", ask.get("why") or "").strip()
-                row = ("| %s | UNATTRIBUTED (reattribution to %s) | %+d | approved claim: %s (Consequences Brain) |\n"
-                       "| %s | %s (reattribution from UNATTRIBUTED) | %+d | approved claim: %s (Consequences Brain) |\n") % (
-                    stamp, runner, -pts, why, stamp, runner, pts, why)
-            else:
-                row = "| %s | %s | %+d | %s%s (awarded in the Consequences Brain) |\n" % (
-                    stamp, runner, pts, task, " (%d turns)" % turns if turns > 1 else "")
-            if LEDGER_IS_JSONL:   # the points add-on ledger: same events its own CLI writes
-                if ask.get("kind") == "claim":
+                if LEDGER_IS_JSONL:   # the points add-on ledger: same events its own CLI writes
                     entries = [("UNATTRIBUTED", -pts, "claim", "reattribution to %s: %s" % (runner, why)),
                                (runner, pts, "claim", "reattribution from UNATTRIBUTED: %s" % why)]
                 else:
-                    entries = [(runner, pts, task, "awarded in the Consequences Brain" + (" (%d turns)" % turns if turns > 1 else ""))]
-                bak, _lines = append_ledger(entries)
+                    entries = [("UNATTRIBUTED (reattribution to %s)" % runner, -pts, "approved claim: %s (Consequences Brain)" % why, ""),
+                               ("%s (reattribution from UNATTRIBUTED)" % runner, pts, "approved claim: %s (Consequences Brain)" % why, "")]
+            elif LEDGER_IS_JSONL:
+                entries = [(runner, pts, task, "awarded in the Consequences Brain" + (" (%d turns)" % turns if turns > 1 else ""))]
             else:
-                bak = _backup(SCOREBOARD)
-                with open(SCOREBOARD, "rb") as f:
-                    f.seek(0, 2)
-                    nl_missing = f.tell() > 0 and (f.seek(-1, 2) or True) and f.read(1) != b"\n"
-                with open(SCOREBOARD, "a", encoding="utf-8", newline="\n") as f:
-                    f.write(("\n" if nl_missing else "") + row)
+                entries = [(runner, pts, "%s%s (awarded in the Consequences Brain)" % (task, " (%d turns)" % turns if turns > 1 else ""), "")]
+            bak, lines = append_ledger(entries)   # one write path for every award: backup first, both ledger formats
             cb_activity.resolve_ask(folder, os.path.basename(name), "awarded", pts)
             STATE.refresh(force=True)
-            return {"ok": True, "row": row.strip(), "backup": bak}
+            return {"ok": True, "row": "\n".join(lines), "backup": bak}
         except Exception as e:
             return {"ok": False, "error": "%s: %s" % (type(e).__name__, e)}
+
+    # ---- gated point delegation: owner clicks only (agents use cb_gate.py claim, which cannot do any of these)
+    def _gate(self, fn):
+        if DEMO["on"]:
+            return {"ok": False, "error": "sample mode: the gate is not shown"}
+        try:
+            out = fn()
+            STATE.refresh(force=True)
+            return {"ok": True, **(out if isinstance(out, dict) else {})}
+        except (cb_gate.GateError, OSError, ValueError) as e:
+            return {"ok": False, "error": str(e)}
+
+    def gate_approve_checks(self):
+        return self._gate(lambda: {"approved_at": cb_gate.owner_approve()["approved_at"]})
+
+    def gate_mode(self, live):
+        return self._gate(lambda: cb_gate.owner_set_mode(bool(live)))
+
+    def gate_revert(self, did):
+        return self._gate(lambda: cb_gate.owner_revert(str(did)))
+
+    def gate_decide(self, did, approve):
+        return self._gate(lambda: cb_gate.owner_decide(str(did), bool(approve)))
 
     def dismiss_ask(self, where, name):
         try:
@@ -1416,7 +1443,7 @@ def attach_stdio():
 
 def main():
     global WATCHER
-    if len(sys.argv) > 1 and sys.argv[1] in ("--version", "working", "done", "idle", "list", "claim", "hook", "award"):
+    if len(sys.argv) > 1 and sys.argv[1] in ("--version", "working", "done", "idle", "list", "claim", "hook", "award", "gate"):
         attach_stdio()
     if "--version" in sys.argv:
         if sys.stdout:
@@ -1426,6 +1453,10 @@ def main():
         os._exit(selftest())
     if len(sys.argv) > 1 and sys.argv[1] in ("working", "done", "idle", "list", "claim", "hook"):
         code = cb_activity.main(sys.argv[1:]) or 0        # the installed app doubles as the beacon command (no Python needed)
+        sys.stdout and sys.stdout.flush()
+        os._exit(code)
+    if len(sys.argv) > 1 and sys.argv[1] == "gate":   # agents ask the gate for points: claim / recheck / status
+        code = cb_gate.main(sys.argv[2:]) or 0
         sys.stdout and sys.stdout.flush()
         os._exit(code)
     if len(sys.argv) > 1 and sys.argv[1] == "award":
@@ -1440,6 +1471,10 @@ def main():
     if not acquire_single_instance():
         focus_existing()
         os._exit(0)
+    try:
+        os.makedirs(cb_gate.gate_dir(), exist_ok=True)   # so the watcher can wake on gate decisions
+    except OSError:
+        pass
     try:  # own taskbar identity so the window icon is used, not python's
         import ctypes
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Consequences.Brain")

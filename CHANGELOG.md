@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased: gated point delegation
+
+- New `cb_gate.py`: agents ask the gate for points (`gate claim --job <type> --commit <sha>`), and the gate runs the owner's checks itself on a clean checkout of that commit. It stores the evidence (command, exit code, output hash, artifact hash, commit) and pays only when every required check passes.
+- Score is quality first. Any failed check scores 0. Measured lower token use than the median of earlier passing runs adds at most 30% of base points. Unmeasured usage gets no bonus.
+- Self-awards are capped and rate limited. Peer awards need rank from owner-given points only. Reciprocal and circular awards are blocked. Anything over a cap waits for the owner's click.
+- Checks and policy are sealed by the owner's click. A commit that edits its pinned tests, or an edit to the checks outside the window, stops the gate (fail closed; tamper-evident, not tamper-proof on one account).
+- A check that later fails on an awarded commit takes the points back. Every gate award can be reverted. Every write goes through one backup-first ledger path.
+- Starts in dry-run: decisions are logged and shown, nothing is written until the owner clicks Go live (two clicks).
+- Window: a "Gate" line in the feed with plain-words decisions, Approve checks, Go live / Back to dry-run, Approve / Decline for waiting awards, and Revert.
+- Optional Claude Code Stop hook `gate hook`: a finished turn that committed in a gated repo is claimed automatically in the background (idle priority, 2 cores, one run at a time).
+- Tests: `addons/brain/tests/test_gate_cheats.py` (38 tests that try to cheat the gate) and new gate checks in `ui_gate.py`. Design: `docs/gated-delegation.md`.
+
 ## 1.7.0
 
 - Proven experience: the leaderboard shows jobs, share that went well and XP for each runner, and can be ordered by XP ("Proven").

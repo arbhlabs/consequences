@@ -115,11 +115,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--holo);outline-o
 .ask-pill{display:flex;align-items:center;gap:7px;height:32px;padding:0 13px;border-radius:16px;white-space:nowrap;cursor:pointer;
   background:rgba(60,44,8,.62);border:1px solid rgba(255,193,77,.5);color:#ffe4ad;font:600 11px/1.2 var(--mono);letter-spacing:.1em;text-transform:uppercase}
 .ask-pill .beat{background:var(--pos);box-shadow:0 0 8px var(--pos)}
-.ask-card{display:block;width:100%;border:1px solid rgba(255,193,77,.38);background:rgba(255,193,77,.07);border-radius:10px;
+.ask-card,.gate-card{display:block;width:100%;border:1px solid rgba(255,193,77,.38);background:rgba(255,193,77,.07);border-radius:10px;
   padding:7px 8px 8px;margin:2px 0 6px;color:var(--ink);font-size:11.5px;line-height:1.35;overflow-wrap:anywhere}
-.ask-card .who{color:var(--pos);font-weight:700}
-.ask-card .via{color:var(--ink-3);font:10.5px var(--mono)}
-.ask-card .what{display:block;margin-top:3px;color:var(--ink)}
+.ask-card .who,.gate-card .who{color:var(--pos);font-weight:700}
+.ask-card .via,.gate-card .via{color:var(--ink-3);font:10.5px var(--mono)}
+.ask-card .what,.gate-card .what{display:block;margin-top:3px;color:var(--ink)}
 .ask-card.quiet{border-color:var(--line);background:rgba(95,227,255,.04)}
 .ask-card.quiet .who{color:var(--ink)}
 .ask-more{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;padding:6px 8px;margin:2px 0 6px;border:1px dashed var(--line);border-radius:10px;
@@ -127,6 +127,10 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--holo);outline-o
 .ask-more span{flex:1 1 auto;min-width:0}
 .ask-more button{border:0;background:transparent;padding:2px 0;color:var(--holo);font:600 10.5px/1.35 var(--mono);letter-spacing:.06em;text-transform:uppercase;text-decoration:underline;text-underline-offset:2px}
 .ask-more button:hover{color:#a9f1ff}
+.gate-card{border-color:var(--line-2);background:rgba(95,227,255,.05)}
+.gate-card.waiting{border-color:rgba(255,193,77,.38);background:rgba(255,193,77,.07)}
+.gate-card.blocked{border-color:rgba(255,93,115,.35);background:rgba(255,93,115,.05)}
+.gate-card .tag{color:var(--holo);font:600 10px/1.2 var(--mono);letter-spacing:.08em;text-transform:uppercase}
 .feed-list.scroll{overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(95,227,255,.35) transparent}
 .feed-list.scroll::-webkit-scrollbar{width:6px}
 .feed-list.scroll::-webkit-scrollbar-thumb{background:rgba(95,227,255,.3);border-radius:3px}
@@ -149,17 +153,17 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--holo);outline-o
   pointer-events:auto;background:rgba(60,44,8,.7);border:1px solid rgba(255,193,77,.5);color:#ffe4ad;font:600 10.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase}
 .sample-tag button{height:18px;padding:0 8px;border-radius:9px;border:1px solid rgba(255,193,77,.5);background:transparent;color:#ffe4ad;font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase}
 .sample-tag button:hover{background:rgba(255,193,77,.18)}
-.ask-card .when{color:var(--ink-3);font:10.5px var(--mono)}
-.ask-card .acts{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
-.ask-card .acts button{height:24px;min-width:34px;padding:0 8px;border-radius:12px;border:1px solid var(--line-2);background:rgba(95,227,255,.08);
+.ask-card .when,.gate-card .when{color:var(--ink-3);font:10.5px var(--mono)}
+.ask-card .acts,.gate-card .acts{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.ask-card .acts button,.gate-card .acts button{height:24px;min-width:34px;padding:0 8px;border-radius:12px;border:1px solid var(--line-2);background:rgba(95,227,255,.08);
   color:var(--ink);font:700 11px/1 var(--font);font-variant-numeric:tabular-nums}
-.ask-card .acts button.p{border-color:rgba(255,193,77,.55);color:var(--pos)}
-.ask-card .acts button.n{border-color:rgba(255,93,115,.5);color:var(--neg)}
-.ask-card .acts button.x{color:var(--ink-2);margin-left:auto}
-.ask-card .acts button:hover{background:rgba(95,227,255,.18)}
-.ask-card .sug{display:block;margin-top:4px;color:#ffe4ad;font-size:11.5px}
-.ask-card .note{display:block;margin-top:4px;color:var(--ink-2);font:10.5px/1.35 var(--mono)}
-.ask-card .acts button.accept{background:rgba(255,193,77,.2);border-color:rgba(255,193,77,.8);color:#ffd88a;box-shadow:0 0 12px rgba(255,193,77,.25)}
+.ask-card .acts button.p,.gate-card .acts button.p{border-color:rgba(255,193,77,.55);color:var(--pos)}
+.ask-card .acts button.n,.gate-card .acts button.n{border-color:rgba(255,93,115,.5);color:var(--neg)}
+.ask-card .acts button.x,.gate-card .acts button.x{color:var(--ink-2);margin-left:auto}
+.ask-card .acts button:hover,.gate-card .acts button:hover{background:rgba(95,227,255,.18)}
+.ask-card .sug,.gate-card .sug{display:block;margin-top:4px;color:#ffe4ad;font-size:11.5px}
+.ask-card .note,.gate-card .note{display:block;margin-top:4px;color:var(--ink-2);font:10.5px/1.35 var(--mono)}
+.ask-card .acts button.accept,.gate-card .acts button.accept{background:rgba(255,193,77,.2);border-color:rgba(255,193,77,.8);color:#ffd88a;box-shadow:0 0 12px rgba(255,193,77,.25)}
 .tabs{display:flex;gap:4px}
 .tabs button{height:20px;padding:0 8px;border-radius:10px;border:1px solid transparent;background:transparent;color:var(--ink-2);
   font:600 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase}
@@ -433,7 +437,7 @@ function normalize(src){
   var d=(src&&src.graph)?src.graph:(src||{});
   return {nodes:d.nodes||[],totals:d.totals||{},updated:d.updated||0,version:d.version==null?-1:d.version,
           splits:d.splits||[],eventTotal:d.event_total||0,agentCounts:d.agent_counts||{},pools:d.pools||{},net:d.net,brand:d.brand||'',ledger:d.ledger_name||'',activity:d.activity||[],asks:d.asks||[],now:d.now||0,framework:d.framework||{ranks:[],rules:[]},
-          sample:!!d.sample,setup:d.setup||{},appVersion:d.app_version||'',experience:d.experience||{}};
+          sample:!!d.sample,setup:d.setup||{},appVersion:d.app_version||'',experience:d.experience||{},gate:d.gate||null};
 }
 
 /* ---------------------------------------------------------------- springs (panels) */
@@ -488,11 +492,12 @@ function index(data){
   setActivity(data.activity,data.now);
   fw=data.framework||{ranks:[],rules:[]};
   asks=(data.asks||[]).filter(function(k){return !resolved[k.dir+'/'+k.file];});
+  gate=data.gate;
   if(state.selected&&!by[state.selected])state.selected=null;
 }
 /* ---------------------------------------------------------------- live activity (push beacons, cb_activity.py) */
 var work={},workTimer=0,asks=[],resolved={},fw={ranks:[],rules:[]},tab='moves';
-var ASK_CAP=4,showAllAsks=false,showQuiet=false;   // the waiting list never grows without limit
+var ASK_CAP=4,showAllAsks=false,showQuiet=false,gate=null,showGate=false,gateArm='';   // the waiting list never grows without limit
 function loudAsks(){return asks.filter(function(k){return !k.quiet;});}
 function quietAsks(){return asks.filter(function(k){return k.quiet;});}
 /* pulse of the small "working" dots, stepped from the 3D frame at ~15 Hz (see the .beat rule) */
@@ -851,9 +856,35 @@ function ago(ts){var m=Math.max(0,Math.round((Date.now()/1000-ts)/60));return m<
 function whoHtml(k){   // the runner under the same name as the leaderboard; where it ran is a quiet suffix
   return '<span class="who">'+esc(k.agent||k.raw)+'</span>'+(k.via?' <span class="via" title="'+esc(k.raw)+'">'+esc(k.via)+'</span>':'');
 }
+/* gated point delegation: the gate's own decisions, explained in plain words; owner clicks only */
+var GATE_WORD={would_award:'would award',would_wait:'would wait',awarded:'awarded',waiting:'waiting for you',blocked:'no points',
+  reverted:'reverted',clawed_back:'taken back',would_claw_back:'would take back',declined:'declined',busy:'busy'};
+function gateCard(i){
+  var cls=i.status==='waiting'?' waiting':(i.status==='blocked'||i.status==='clawed_back')?' blocked':'';
+  var acts=i.can_decide?'<button type="button" class="accept" data-gate-decide="1">Approve '+fmt(i.points)+'</button><button type="button" class="x" data-gate-decide="0">Decline</button>'
+    :i.can_revert?'<button type="button" class="x" data-gate-revert="1" title="Write a counter-entry that takes these points back">Revert</button>':'';
+  return '<div class="gate-card'+cls+'" data-gate-id="'+esc(i.id)+'"><span class="tag">Gate · '+esc(GATE_WORD[i.status]||i.status)+'</span> <span class="when">· '+esc(i.job)+' · '+ago(i.ts)+'</span>'+
+    '<span class="what">'+esc(i.explain)+'</span>'+(i.after?'<span class="note">'+esc(i.after)+'</span>':'')+(acts?'<div class="acts">'+acts+'</div>':'')+'</div>';
+}
+function gateHtml(){
+  if(!gate||!gate.configured)return '';
+  var items=gate.items||[],waiting=items.filter(function(i){return i.can_decide;}),seal=gate.seal||{};
+  var live=gate.mode==='live',n=items.length;
+  var html='<div class="ask-more gate-line"><span>Gate · '+(live?'live':'dry-run')+' · '+(seal.ok?'checks approved '+ago(seal.approved_at||0):'paused: '+esc(seal.reason||'checks not approved'))+
+    ' · '+n+' decision'+(n===1?'':'s')+' in 3 days</span><button type="button" data-gate-toggle="1">'+(showGate?'Hide':'Show')+'</button></div>';
+  if(showGate){
+    html+='<div class="ask-more gate-ctl"><span>'+(live?'Points are written to the ledger.':'Nothing is written; decisions show what would happen.')+'</span>'+
+      (seal.ok?'<button type="button" data-gate-mode="'+(live?'0':'1')+'">'+(gateArm==='mode'?(live?'Click again: dry-run':'Click again: go live'):(live?'Back to dry-run':'Go live'))+'</button>':'')+
+      '<button type="button" data-gate-approve="1" title="Seal the current checks and policy, and pin the test files">'+(gateArm==='approve'?'Click again to approve':(seal.ok?'Re-approve checks':'Approve checks'))+'</button></div>';
+    var ev=(gate.events||[]).slice(0,4);   // every owner action with its time: anyone on this account could call them, so they are never silent
+    if(ev.length)html+='<div class="ask-more gate-ev"><span>Owner actions: '+ev.map(function(e){return esc(e.text)+' '+ago(e.ts);}).join(' · ')+'</span></div>';
+    html+=items.map(gateCard).join('')||'<div class="ask-more"><span>No gate decisions yet</span></div>';
+  }else html+=waiting.map(gateCard).join('');
+  return html;
+}
 function askCards(cap){
   var loud=loudAsks(),quiet=quietAsks(),shown=showAllAsks?loud:loud.slice(0,cap);
-  var html=shown.map(askCard).join('');
+  var html=gateHtml()+shown.map(askCard).join('');
   if(loud.length>Math.min(cap,ASK_CAP))html+='<div class="ask-more"><span>'+(showAllAsks?'All '+loud.length+' waiting shown':'+'+(loud.length-shown.length)+' older waiting')+'</span>'+
     '<button type="button" data-asks-toggle="1">'+(showAllAsks?'Show fewer':'Show all')+'</button></div>';
   if(quiet.length)html+='<div class="ask-more"><span>'+quiet.length+' finished without asking for points</span>'+
@@ -889,18 +920,18 @@ function renderFeed(fresh){
   var host=document.getElementById('feed-list');
   document.querySelector('.feed .panel-head h2').textContent=loudAsks().length?'Waiting for points':'Feed';
   host.classList.remove('scroll');
-  if(!list.length&&!asks.length){host.innerHTML='<div class="meta" style="padding:10px 6px">No scored events yet</div>';return;}
+  if(!list.length&&!asks.length&&!gateHtml()){host.innerHTML='<div class="meta" style="padding:10px 6px">No scored events yet</div>';return;}
   var rowsHtml=list.map(function(n){
     return '<button class="feed-row '+(n.type==='strike'?'negative':'')+(state.selected===n.id?' selected':'')+'" data-feed-id="'+esc(n.id)+'" data-jump="'+esc(n.id)+'">'+sentence(n)+'</button>';
   }).join('');
   // newest cards first, as many as fit (at most ASK_CAP); the rest fold into one "+N older waiting" line
-  var cap=ASK_CAP,fits=function(){var a=host.querySelectorAll('.ask-card,.ask-more');
+  var cap=ASK_CAP,fits=function(){var a=host.querySelectorAll('.ask-card,.ask-more,.gate-card');
     return !a.length||a[a.length-1].getBoundingClientRect().bottom<=host.getBoundingClientRect().bottom+1;};
   host.innerHTML=askCards(cap)+rowsHtml;
-  if(!showAllAsks&&!showQuiet)while(cap>1&&!fits()){cap--;host.innerHTML=askCards(cap)+rowsHtml;}
+  if(!showAllAsks&&!showQuiet&&!showGate)while(cap>1&&!fits()){cap--;host.innerHTML=askCards(cap)+rowsHtml;}
   fitList(host,0);
   // a waiting card is never hidden silently: if the cards alone do not fit, the list scrolls instead
-  if(host.querySelector('.ask-card[hidden],.ask-more[hidden]')){for(var c=0;c<host.children.length;c++)host.children[c].hidden=false;host.classList.add('scroll');}
+  if(host.querySelector('.ask-card[hidden],.ask-more[hidden],.gate-card[hidden]')){for(var c=0;c<host.children.length;c++)host.children[c].hidden=false;host.classList.add('scroll');}
   if(!host.querySelector('.feed-row:not([hidden])')&&state.selected&&!asks.length){var m=document.createElement('div');m.className='meta feed-note';m.style.padding='8px 6px';m.textContent='Long entry open. Press Esc to bring the feed back.';host.appendChild(m);}
   if(fresh){var rows=host.querySelectorAll('[data-feed-id]');for(var i=0;i<rows.length;i++)if(fresh[rows[i].getAttribute('data-feed-id')])
     play(rows[i],[{opacity:0,transform:'translateY(-8px)',backgroundColor:'rgba(95,227,255,.2)'},{opacity:1,transform:'none',backgroundColor:'rgba(95,227,255,0)'}],{duration:Math.max(700,SPRING.duration),easing:SPRING.easing});}
@@ -960,7 +991,23 @@ function onResize(){
   if(resizeQueued||!state.ready)return;resizeQueued=true;
   requestAnimationFrame(function(){resizeQueued=false;fitRows(document.getElementById('leaderboard-rows'));renderDetail(state.selected);renderFeed(null);});
 }
+function onGateClick(e){
+  var t=e.target.closest('[data-gate-toggle],[data-gate-mode],[data-gate-approve],[data-gate-revert],[data-gate-decide]');
+  if(!t)return false;
+  if(t.hasAttribute('data-gate-toggle')){showGate=!showGate;gateArm='';renderFeed(null);return true;}
+  var a=api();if(!a)return true;
+  var arm=t.hasAttribute('data-gate-mode')?'mode':t.hasAttribute('data-gate-approve')?'approve':'';
+  if(arm&&gateArm!==arm){gateArm=arm;renderFeed(null);setTimeout(function(){if(gateArm===arm){gateArm='';renderFeed(null);}},5000);return true;}   // two clicks: no accidental go-live
+  gateArm='';
+  var card=t.closest('[data-gate-id]'),id=card?card.getAttribute('data-gate-id'):'';
+  var p=t.hasAttribute('data-gate-mode')?a.gate_mode(t.getAttribute('data-gate-mode')==='1'):t.hasAttribute('data-gate-approve')?a.gate_approve_checks():
+    t.hasAttribute('data-gate-revert')?a.gate_revert(id):a.gate_decide(id,t.getAttribute('data-gate-decide')==='1');
+  t.disabled=true;
+  Promise.resolve(p).then(function(r){if(r&&r.ok)load();else{t.disabled=false;t.title=(r&&r.error)||'Could not save';(card||t).setAttribute('data-error',(r&&r.error)||'');}});
+  return true;
+}
 function onAskClick(e){
+  if(onGateClick(e))return true;
   var t=e.target.closest('[data-asks-toggle],[data-quiet-toggle],[data-quiet-clear]');
   if(t){
     if(t.hasAttribute('data-asks-toggle'))showAllAsks=!showAllAsks;
@@ -1032,6 +1079,8 @@ window.__cbTest={
   asks:function(){return {cards:document.querySelectorAll('.ask-card').length,pill:document.getElementById('ask-pill').hidden?null:document.getElementById('ask-text').textContent,scene:window.CBScene&&window.CBScene.asking?window.CBScene.asking():[]};},
   working:function(){return {sessions:Object.keys(work).reduce(function(t,k){t[k]=work[k].n;return t;},{}),panel:Object.keys(work),pill:document.getElementById('work-pill').hidden?null:document.getElementById('work-text').textContent,count:document.getElementById('work-count').textContent,scene:window.CBScene&&window.CBScene.working?window.CBScene.working():[]};},
   idle:function(){var sc=window.CBScene&&window.CBScene.stats?window.CBScene.stats():{};return {rafPending:!!raf,frames:frames,activeSprings:active.length,runningAnimations:document.getAnimations().filter(function(a){return a.playState==='running';}).length,workingBeats:beatEls.length,scene:sc};},
+  gateView:function(){return {line:(document.querySelector('.gate-line')||{}).textContent||null,ev:(document.querySelector('.gate-ev')||{}).textContent||null,cards:Array.prototype.map.call(document.querySelectorAll('.gate-card'),function(e){return e.textContent;}),
+    errors:Array.prototype.map.call(document.querySelectorAll('[data-error]'),function(e){return e.getAttribute('data-error');})};},
   asksView:function(){return {loud:loudAsks().length,quiet:quietAsks().length,cards:document.querySelectorAll('.ask-card:not([hidden])').length,scroll:document.getElementById('feed-list').classList.contains('scroll'),
     names:Array.prototype.map.call(document.querySelectorAll('.ask-card .who'),function(e){return e.textContent;}),text:Array.prototype.map.call(document.querySelectorAll('.ask-card'),function(e){return e.textContent;})};},
   setup:function(){return {onboard:!document.getElementById('onboard').hidden,sample:!document.getElementById('sample-tag').hidden};}
